@@ -13,6 +13,7 @@
 #    darwin.url = "github:lnl7/nix-darwin";
 #    home-manager.url = "github:nix-community/home-manager";
     emacs-overlay.url = "github:nix-community/emacs-overlay";
+    mozilla.url = "github: mozilla /nixpkgs-mozilla";
 
     # Follows
 #    darwin.inputs.nixpkgs.follows = "nixpkgs";
@@ -23,6 +24,7 @@
     let
       overlays = [
         emacs-overlay.overlay
+        mozilla.overlay
 #        (import ./nix/overlays)
       ];
     in {
