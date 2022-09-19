@@ -1,9 +1,26 @@
 - overlays under trial and possibly will be merged
--- nix
---- niv
---- ops/infra
--- misc 
---- rust
---- nyxt
---- firefox
--- 
+  - nix
+	- niv
+	- ops/infra
+- misc 
+	- rust
+	- nyxt
+	- firefox
+- cardano
+  - stakepool
+  - smartcontract
+  - node
+  - wallet
+- ghc
+  - relude
+  - semigroup
+  - prettyprint
+  - hakyll
+  - cabal
+	- cabal2nix
+  - stack
+- emacs
+  - dante mode
+  - org-roam
+  - sqlite3
+  
