@@ -12,6 +12,7 @@
   - node
   - wallet
 - ghc
+  - ghc.monad
   - relude
   - semigroup
   - prettyprint
@@ -24,3 +25,8 @@
   - org-roam
   - sqlite3
   
+- atp/itp
+  - lean
+  - coq
+  - liquid
+  - agda
