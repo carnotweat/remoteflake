@@ -7,7 +7,10 @@
   - flake is like makefile
   - configuration.nix is like ~/.config
 - why not take every overlay to ~/.config
-  - I am not in to too many files
+  - I am not in to too many files for sysops, even if the situtation arisres
+  
+  
+  , I d go with too manybranches. 
 - todo
   - cachix
   - nickel
