@@ -1,5 +1,6 @@
 # remoteflake
-- a very minimal flake build of nixos
+- what
+  - a very minimal flake build of nixos
 - why flake
   - just like emacs , I d rather rely on a set of macros in a file than checkout,registry, tarball
 - why this way
