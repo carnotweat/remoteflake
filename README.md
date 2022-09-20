@@ -1,25 +1,23 @@
 # remoteflake
 - a very minimal flake build of nixos
-- why 
--- besides trying new things , the differences are ideological
---- nix vs bazel
---- flake vs niv 
---- emacs vs vscode
---- risc v vs intel
---- linux vs windows
---- nixos vs android
-- well you get the gist
+- why flake
+  - just like emacs , I d rather rely on a set of macros in a file than checkout,registry, tarball
+- why this way
+  - flake is like makefile
+  - configuration.nix is like ~/.config
+- why not take every overlay to ~/.config
+  - I am not in to too many files
 - todo
--- cachix
--- nickel
--- tweak ipv6, dns config for nar.zx
--- nixops for nix-infra 
+  - cachix
+  - nickel
+  - tweak ipv6, dns config for nar.zx
+  - nixops for nix-infra 
 - what is not there 
--- home manager
--- darwin
--- shell.nix
+  - home manager
+  - darwin
+  - shell.nix
 - how to get it up and running
--- just ln -s it to /etc/nixos and nixos-rebuild --flake /etc/nixos#hostname
-Suggested reference
--- [1](https://zimbatm.com/notes/nixflakes)
--- [2](https://xeiaso.net/blog/nix-flakes-look-up-package)
+  - just ln -s it to /etc/nixos and nixos-rebuild --flake /etc/nixos#hostname
+- Suggested reference
+  - [1](https://zimbatm.com/notes/nixflakes)
+  - [2](https://xeiaso.net/blog/nix-flakes-look-up-package)
