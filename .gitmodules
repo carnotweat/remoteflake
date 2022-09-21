@@ -1,3 +1,6 @@
 [submodule "flake-parts"]
 	path = flake-parts
 	url = https://github.com/hercules-ci/flake-parts.git
+[submodule "flake-utils-plus"]
+	path = flake-utils-plus
+	url = https://github.com/gytis-ivaskevicius/flake-utils-plus.git
