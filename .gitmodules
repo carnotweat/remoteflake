@@ -1,0 +1,3 @@
+[submodule "dev-shell"]
+	path = dev-shell
+	url = https://github.com/numtide/devshell.git
