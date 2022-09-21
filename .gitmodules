@@ -4,3 +4,9 @@
 [submodule "flake-utils-plus"]
 	path = flake-utils-plus
 	url = https://github.com/gytis-ivaskevicius/flake-utils-plus.git
+[submodule "poetry"]
+	path = poetry
+	url = https://github.com/nix-community/poetry2nix.git
+[submodule "rules_nixpkgs"]
+	path = rules_nixpkgs
+	url = https://github.com/tweag/rules_nixpkgs.git
