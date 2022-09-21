@@ -1,0 +1,3 @@
+[submodule "flake-parts"]
+	path = flake-parts
+	url = https://github.com/hercules-ci/flake-parts.git
