@@ -1,4 +1,16 @@
 # remoteflake
+- vocabulary 
+  - hermetic
+	- /həːˈmɛtɪk/
+    - (of a seal or closure) complete and airtight.
+	  - so sandboxed here , as in, stateless atomic upgrades or something.
+  - pure
+	- independent of env, command line inputs , flags
+  - self contained
+	- independent of network
+ 
+
+ 
 - what
   - a very minimal flake build of nixos
 - why flake
