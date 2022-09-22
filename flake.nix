@@ -8,7 +8,7 @@
   inputs.rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
   inputs.rust-overlay.inputs.flake-utils.follows = "flake-utils";
   inputs.import-cargo.url = "github:edolstra/import-cargo";
-
+  inputs.nixago.url = "github:jmgilman/nixago";
   nixConfig = {
     extra-substituters = [ "https://tweag-nickel.cachix.org" ];
     extra-trusted-public-keys = [ "tweag-nickel.cachix.org-1:GIthuiK4LRgnW64ALYEoioVUQBWs0jexyoYVeLDBwRA=" ];
