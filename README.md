@@ -10,10 +10,13 @@
 	- independent of network
 
  
-- So if flake doesn't get env-var from env or command flags, where does it get flake inputs from?
+- So if flake doesn't get env-var from env or command flags, where does it get flake inputs  
+to inherit package properties?
   - flake inputs
   - imported config
-  - 
+  - compose flakes  ( for multiple builds and systems) with
+	- overlay
+		- when a flake wants to extend nixpkgs with their own overrides
 - Why 
 - we want to fetch, catch and eval out refs ( objects when stored) , from specific git branch   
 es and revisions irrespective of our env, network, states, flags. So that we can be detrministic  
@@ -25,11 +28,14 @@ machine
   - configuration.nix is like ~/.config
 - why not take every overlay to ~/.config
   - I am not in to too many files for sysops, even if the situtation arisres    
-  , I d go with too manybranches. 
+  , I d go with too many branches.
+- why not direnv
+  - By exatension, I avoid converting a dir to flake project everytime I use a flake.nix 
 - todo
   - overlay
 	- nur
 	- devshell
+	- flake-utils
 - what is not there 
   - home manager
   - darwin
