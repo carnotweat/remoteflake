@@ -8,26 +8,28 @@
 	- independent of env, command line inputs , flags
   - self contained
 	- independent of network
- 
 
  
+- So if flake doesn't get env-var from env or command flags, where does it get flake inputs from?
+  - flake inputs
+  - imported config
+  - 
+- Why 
+- we want to fetch, catch and eval out refs ( objects when stored) , from specific git branch   
+es and revisions irrespective of our env, network, states, flags. So that we can be detrministic  
+in telling our peer, about the reproducible and consistent build , we are going to deploy in his  
+machine
 - what
   - a very minimal flake build of nixos
-- why flake
-  - just like emacs , I d rather rely on a set of macros in a file than checkout,registry, tarball
-- why this way
   - flake is like makefile
   - configuration.nix is like ~/.config
 - why not take every overlay to ~/.config
-  - I am not in to too many files for sysops, even if the situtation arisres
-  
-  
+  - I am not in to too many files for sysops, even if the situtation arisres    
   , I d go with too manybranches. 
 - todo
-  - cachix
-  - nickel
-  - tweak ipv6, dns config for nar.zx
-  - nixops for nix-infra 
+  - overlay
+	- nur
+	- devshell
 - what is not there 
   - home manager
   - darwin
