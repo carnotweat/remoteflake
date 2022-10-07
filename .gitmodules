@@ -1,0 +1,18 @@
+[submodule "tbuild"]
+	path = tbuild
+	url = https://github.com/mikroskeem/home.git
+[submodule "dev-shell"]
+	path = dev-shell
+	url = ./dev-shell
+[submodule "poetry"]
+	path = poetry
+	url = ./poetry/
+[submodule "rules_nixpkgs"]
+	path = rules_nixpkgs
+	url = ./rules_nixpkgs/
+[submodule "flake-utils-plus"]
+	path = flake-utils-plus
+	url = ./flake-utils-plus/
+[submodule "flake-parts"]
+	path = flake-parts
+	url = ./flake-parts/

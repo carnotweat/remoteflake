@@ -1,0 +1,98 @@
+From 3ea8cfd1fb61baccd38118331adb0b8fe1e7c7a9 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 2 Dec 2020 19:27:10 +0100
+Subject: [PATCH 1/2] Skip user/group checks for Genode hosts
+
+---
+ src/app/main/main.c      | 4 ++++
+ src/lib/fs/dir.c         | 5 +++++
+ src/lib/process/setuid.c | 9 +++++++++
+ 3 files changed, 18 insertions(+)
+
+diff --git a/src/app/main/main.c b/src/app/main/main.c
+index 589d365add..22b5cdf89a 100644
+--- a/src/app/main/main.c
++++ b/src/app/main/main.c
+@@ -669,6 +669,10 @@ static tor_lockfile_t *lockfile = NULL;
+ int
+ try_locking(const or_options_t *options, int err_if_locked)
+ {
++#ifdef __GENODE__
++  /* platform does not support exclusive file-system locks */
++  return 0;
++#endif
+   if (lockfile)
+     return 0;
+   else {
+diff --git a/src/lib/fs/dir.c b/src/lib/fs/dir.c
+index 3432df0299..e33595a006 100644
+--- a/src/lib/fs/dir.c
++++ b/src/lib/fs/dir.c
+@@ -168,6 +168,11 @@ check_private_dir,(const char *dirname, cpd_check_t check,
+     return -1;
+   }
+ 
++#ifdef __GENODE__
++  /* platform lacks users and groups */
++  return 0;
++#endif
++
+   if (effective_user) {
+     /* Look up the user and group information.
+      * If we have a problem, bail out. */
+diff --git a/src/lib/process/setuid.c b/src/lib/process/setuid.c
+index 3cfd520a4f..bf1857ad2a 100644
+--- a/src/lib/process/setuid.c
++++ b/src/lib/process/setuid.c
+@@ -50,6 +50,10 @@
+ static int
+ log_credential_status(void)
+ {
++#ifdef __GENODE__
++  /* platform lacks "credentials" */
++  return 0;
++#endif
+ /** Log level to use when describing non-error UID/GID status. */
+ #define CREDENTIAL_LOG_LEVEL LOG_INFO
+   /* Real, effective and saved UIDs */
+@@ -229,6 +233,11 @@ drop_capabilities(int pre_setuid)
+ int
+ switch_id(const char *user, const unsigned flags)
+ {
++#ifdef __GENODE__
++  /* platform lacks users and groups */
++  return 0;
++#endif
++
+ #ifndef _WIN32
+   const struct passwd *pw = NULL;
+   uid_t old_uid;
+-- 
+2.31.0
+
+
+From 453339560166101a6db53bb701d30184019d3bd9 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Fri, 16 Apr 2021 15:17:43 +0200
+Subject: [PATCH 2/2] scripts/build/combine_libs: use $AR rather than ar
+
+---
+ scripts/build/combine_libs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/build/combine_libs b/scripts/build/combine_libs
+index fb311552fe..9c87f68248 100755
+--- a/scripts/build/combine_libs
++++ b/scripts/build/combine_libs
+@@ -25,7 +25,7 @@ for input in "$@"; do
+     dir="$TMPDIR"/$(basename "$input" .a)
+     mkdir "$dir"
+     cd "$dir">/dev/null
+-    ar x "$abs"
++    "${AR:-ar}" x "$abs"
+ done
+ 
+ cd "$TMPDIR" >/dev/null
+-- 
+2.31.0
+

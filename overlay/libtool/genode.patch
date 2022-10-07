@@ -1,0 +1,76 @@
+commit d9cf21a6ff7652bca277e280e7820d082fbdc5a1
+Author: Emery Hemingway <ehmry@posteo.net>
+Date:   Thu Oct 29 18:47:44 2020 +0100
+
+    libtool: Genode OS support
+
+diff --git a/m4/libtool.m4 b/m4/libtool.m4
+index f2d1f398..2041eefd 100644
+--- a/m4/libtool.m4
++++ b/m4/libtool.m4
+@@ -2722,6 +2722,17 @@ freebsd* | dragonfly*)
+   esac
+   ;;
+ 
++genode*)
++  version_type=none
++  need_lib_prefix=no
++  need_version=no
++  dynamic_linker="$host_os ld.lib.so"
++  library_names_spec='$name.lib$shared_ext'
++  soname_spec='$name.lib$shared_ext'
++  sys_lib_dlsearch_path_spec=
++  hardcode_into_libs=yes
++  ;;
++
+ haiku*)
+   version_type=linux # correct to gnu/linux during the next big refactor
+   need_lib_prefix=no
+@@ -3526,6 +3537,10 @@ freebsd* | dragonfly*)
+   fi
+   ;;
+ 
++genode*)
++  lt_cv_deplibs_check_method=pass_all
++  ;;
++
+ haiku*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+@@ -4684,6 +4699,11 @@ m4_if([$1], [CXX], [
+       esac
+       ;;
+ 
++    genode*)
++      _LT_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
++      _LT_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
++      ;;
++
+     hpux9* | hpux10* | hpux11*)
+       _LT_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+       # PIC is the default for IA64 HP-UX and 64-bit HP-UX, but
+@@ -5680,6 +5700,13 @@ _LT_EOF
+       _LT_TAGVAR(hardcode_shlibpath_var, $1)=no
+       ;;
+ 
++    genode*)
++      _LT_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag -o $lib $libobjs $deplibs $compiler_flags'
++      _LT_TAGVAR(hardcode_direct, $1)=yes
++      _LT_TAGVAR(hardcode_shlibpath_var, $1)=no
++      _LT_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
++      ;;
++
+     hpux9*)
+       if test yes = "$GCC"; then
+ 	_LT_TAGVAR(archive_cmds, $1)='$RM $output_objdir/$soname~$CC -shared $pic_flag $wl+b $wl$install_libdir -o $output_objdir/$soname $libobjs $deplibs $compiler_flags~test "x$output_objdir/$soname" = "x$lib" || mv $output_objdir/$soname $lib'
+@@ -6791,6 +6818,10 @@ if test yes != "$_lt_caught_CXX_error"; then
+         _LT_TAGVAR(ld_shlibs, $1)=yes
+         ;;
+ 
++      genode*)
++        _LT_TAGVAR(ld_shlibs, $1)=no
++        ;;
++
+       haiku*)
+         _LT_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags $wl-soname $wl$soname -o $lib'
+         _LT_TAGVAR(link_all_deplibs, $1)=yes

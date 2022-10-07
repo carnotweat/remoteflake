@@ -1,0 +1,61 @@
+From 076ab8c2ae68386fb6ed03e7bd3280a9808ce0ed Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 14 Apr 2021 11:51:38 +0200
+Subject: [PATCH] gui_fb: always set a usable framebuffer mode
+
+Reduce the size of a requested mode until there is sufficient RAM
+to render that mode, rather than refuse to set a mode at all.
+---
+ repos/os/src/server/gui_fb/main.cc | 22 +++++++++++++++-------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/repos/os/src/server/gui_fb/main.cc b/repos/os/src/server/gui_fb/main.cc
+index 923208896e..67f32b22d0 100644
+--- a/repos/os/src/server/gui_fb/main.cc
++++ b/repos/os/src/server/gui_fb/main.cc
+@@ -121,7 +121,7 @@ struct Framebuffer::Session_component : Genode::Rpc_object<Framebuffer::Session>
+ 
+ 	bool _dataspace_is_new = true;
+ 
+-	bool _ram_suffices_for_mode(Framebuffer::Mode mode) const
++	bool ram_suffices_for_mode(Framebuffer::Mode mode) const
+ 	{
+ 		/* calculation in bytes */
+ 		size_t const used      = _buffer_num_bytes,
+@@ -153,11 +153,6 @@ struct Framebuffer::Session_component : Genode::Rpc_object<Framebuffer::Session>
+ 
+ 		Framebuffer::Mode const mode { .area = size };
+ 
+-		if (!_ram_suffices_for_mode(mode)) {
+-			Genode::warning("insufficient RAM for mode ", mode);
+-			return;
+-		}
+-
+ 		_next_mode = mode;
+ 
+ 		if (_mode_sigh.valid())
+@@ -372,7 +367,20 @@ struct Nit_fb::Main : View_updater
+ 			if (height < 0) height = gui_height + height;
+ 		}
+ 
+-		fb_session.size(Area(width, height));
++		Framebuffer::Mode mode { .area = Area(width, height) };
++		bool reduced = false;
++
++		while (!fb_session.ram_suffices_for_mode(mode)) {
++			mode.area = Area(
++				(mode.area.w() / 4) * 3,
++				(mode.area.h() / 4) * 3);
++			reduced = true;
++		}
++
++		if (reduced)
++			Genode::warning("insufficient RAM, requested mode reduced to ", mode);
++
++		fb_session.size(mode.area);
+ 	}
+ 
+ 	void handle_config_update()
+-- 
+2.31.0
+

@@ -1,0 +1,25 @@
+From ec1d5d65c83d0b04082913fce9f2ecde05b6dde3 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 14 Apr 2021 16:17:37 +0200
+Subject: [PATCH] boot_fb_drv: fix refresh rate at 60Hz
+
+---
+ repos/os/src/drivers/framebuffer/boot/main.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/repos/os/src/drivers/framebuffer/boot/main.cc b/repos/os/src/drivers/framebuffer/boot/main.cc
+index 4551ba1e98..9b8e1c559c 100644
+--- a/repos/os/src/drivers/framebuffer/boot/main.cc
++++ b/repos/os/src/drivers/framebuffer/boot/main.cc
+@@ -107,7 +107,7 @@ struct Framebuffer::Main
+ 		log("using boot framebuffer: ", _info);
+ 
+ 		_timer.sigh(_timer_handler);
+-		_timer.trigger_periodic(10*1000);
++		_timer.trigger_periodic((1000*1000)/60);
+ 	}
+ };
+ 
+-- 
+2.31.0
+

@@ -1,0 +1,33 @@
+commit 45eefd57af801b23bee5e7a587f91f888acfca84
+Author: Emery Hemingway <ehmry@posteo.net>
+Date:   Mon Jun 8 13:02:24 2020 +0530
+
+    vfs_import: log each copy and the completion of import
+
+diff --git a/repos/gems/src/lib/vfs/import/plugin.cc b/repos/gems/src/lib/vfs/import/plugin.cc
+index 0309346c21..0708563667 100644
+--- a/repos/gems/src/lib/vfs/import/plugin.cc
++++ b/repos/gems/src/lib/vfs/import/plugin.cc
+@@ -213,12 +213,14 @@ class Vfs_import::File_system : public Vfs::File_system
+ 					switch (e.type()) {
+ 					case Dirent_type::TRANSACTIONAL_FILE:
+ 					case Dirent_type::CONTINUOUS_FILE:
++						Genode::log("VFS: importing \"", entry_path, "\"…");
+ 						copy_file(env, src, entry_path, alloc, overwrite);
+ 						return;
+ 					case Dirent_type::DIRECTORY:
+ 						copy_dir(env, src, entry_path, alloc, overwrite);
+ 						return;
+ 					case Dirent_type::SYMLINK:
++						Genode::log("VFS: importing \"", entry_path, "\"…");
+ 						copy_symlink(env, src, entry_path, alloc, overwrite);
+ 						return;
+ 					case Dirent_type::END:
+@@ -238,6 +240,7 @@ class Vfs_import::File_system : public Vfs::File_system
+ 
+ 			Root_directory content(env.env(), _heap, config);
+ 			copy_dir(env, content, Directory::Path(""), _heap, overwrite);
++			Genode::log("VFS: import complete");
+ 		}
+ 
+ 		const char* type() override { return "import"; }

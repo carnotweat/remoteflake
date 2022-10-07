@@ -1,0 +1,12 @@
+diff -ur a/configure b/configure
+--- a/configure	2020-02-12 15:20:22.000000000 +0530
++++ b/configure	2020-05-28 23:24:05.461176897 +0530
+@@ -6012,7 +6012,7 @@
+ 		MK_SHARED_LIB='${LD} ${LDFLAGS} -Bshareable -o $@'
+ 		test "$cf_cv_shlib_version" = auto && cf_cv_shlib_version=rel
+ 		;;
+-	(dragonfly*|freebsd*)
++	(dragonfly*|freebsd*|genode*)
+ 		CC_SHARED_OPTS="$CC_SHARED_OPTS -DPIC"
+ 		if test "$DFT_LWR_MODEL" = "shared" && test "$cf_cv_enable_rpath" = yes ; then
+ 			LOCAL_LDFLAGS="${cf_ld_rpath_opt}\$(LOCAL_LIBDIR)"

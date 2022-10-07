@@ -1,0 +1,14 @@
+diff --git a/tool/ports/mk/install.mk b/tool/ports/mk/install.mk
+index 6fe5271abf..dec4984063 100644
+--- a/tool/ports/mk/install.mk
++++ b/tool/ports/mk/install.mk
+@@ -179,7 +179,8 @@ _svn_dir = $(call _assert,$(DIR($1)),Missing declaration of DIR($*))
+ 	$(VERBOSE)dir=$(call _svn_dir,$*);\
+ 		rm -rf $$dir; \
+ 		$(MSG_DOWNLOAD)$(URL($*)); \
+-		svn export -q $(URL($*))@$(REV($*)) $$dir;
++		svn export --trust-server-cert --non-interactive \
++			-q $(URL($*))@$(REV($*)) $$dir;
+ 
+ 
+ ##

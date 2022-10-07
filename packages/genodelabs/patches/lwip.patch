@@ -1,0 +1,44 @@
+From ecd90bc782f50b815fcc68e59de0c92907b6fefb Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Mon, 9 Nov 2020 23:08:08 +0100
+Subject: [PATCH] lwip: bring interface up after configuring
+
+Calling netif_set_up before netif_set_netmask and netif_set_gw will bring
+the interface up successfully but triggers misleading log messages.
+---
+ repos/libports/include/lwip/nic_netif.h | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/repos/libports/include/lwip/nic_netif.h b/repos/libports/include/lwip/nic_netif.h
+index 167abecb3f..6b11a5c28f 100644
+--- a/repos/libports/include/lwip/nic_netif.h
++++ b/repos/libports/include/lwip/nic_netif.h
+@@ -181,8 +181,6 @@ class Lwip::Nic_netif
+ 				return;
+ 			}
+ 
+-			netif_set_up(&_netif);
+-
+ 			if (ip_str != "") {
+ 				ip_addr_t ipaddr;
+ 				if (!ipaddr_aton(ip_str.string(), &ipaddr)) {
+@@ -205,7 +203,6 @@ class Lwip::Nic_netif
+ 					ipaddr_aton(str.string(), &ip);
+ 					netif_set_gw(&_netif, ip_2_ip4(&ip));
+ 				}
+-
+ 			}
+ 
+ 			if (config.has_attribute("nameserver")) {
+@@ -220,6 +217,8 @@ class Lwip::Nic_netif
+ 				dns_setserver(0, &ip);
+ 			}
+ 
++			netif_set_up(&_netif);
++
+ 			handle_link_state();
+ 		}
+ 
+-- 
+2.28.0
+

@@ -1,0 +1,86 @@
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index be8141c98166..f51c8c4875d2 100644
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -167,6 +167,7 @@ if(LIBCXX_INSTALL_SUPPORT_HEADERS)
+     ${files}
+     support/android/locale_bionic.h
+     support/fuchsia/xlocale.h
++    support/genode/xlocale.h
+     support/ibm/limits.h
+     support/ibm/locale_mgmt_aix.h
+     support/ibm/support.h
+diff --git a/include/__config b/include/__config
+index 575147cead42..8f0bb7248113 100644
+--- a/include/__config
++++ b/include/__config
+@@ -921,7 +921,7 @@ typedef unsigned int   char32_t;
+ 
+ #if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+ // Most unix variants have catopen.  These are the specific ones that don't.
+-#  if !defined(__BIONIC__) && !defined(_NEWLIB_VERSION)
++#  if !defined(__BIONIC__) && !defined(_NEWLIB_VERSION) && !defined(__GENODE__)
+ #    define _LIBCPP_HAS_CATOPEN 1
+ #  endif
+ #endif
+@@ -1130,6 +1130,7 @@ _LIBCPP_FUNC_VIS extern "C" void __sanitizer_annotate_contiguous_container(
+       defined(__APPLE__) || \
+       defined(__CloudABI__) || \
+       defined(__sun__) || \
++      defined(__GENODE__) || \
+       (defined(__MINGW32__) && __has_include(<pthread.h>))
+ #    define _LIBCPP_HAS_THREAD_API_PTHREAD
+ #  elif defined(__Fuchsia__)
+diff --git a/include/__locale b/include/__locale
+index 6d10fa4d3d64..97b7bcd6ac46 100644
+--- a/include/__locale
++++ b/include/__locale
+@@ -40,6 +40,8 @@
+ # include <support/musl/xlocale.h>
+ #elif defined(_LIBCPP_HAS_MUSL_LIBC)
+ # include <support/musl/xlocale.h>
++#elif defined(__GENODE__)
++# include <support/genode/xlocale.h>
+ #endif
+ 
+ #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+diff --git a/include/support/genode/xlocale.h b/include/support/genode/xlocale.h
+new file mode 100644
+index 000000000000..3f9a35f6d094
+--- /dev/null
++++ b/include/support/genode/xlocale.h
+@@ -0,0 +1,21 @@
++// -*- C++ -*-
++//===------------------- support/genode/xlocale.h ------------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef _LIBCPP_SUPPORT_GENODE_XLOCALE_H
++#define _LIBCPP_SUPPORT_GENODE_XLOCALE_H
++
++#if defined(__GENODE__)
++
++#include <cstdlib>
++#include <cwchar>
++#include <support/xlocale/__strtonum_fallback.h>
++
++#endif // defined(__GENODE__)
++
++#endif // _LIBCPP_SUPPORT_GENODE_XLOCALE_H
+diff --git a/utils/google-benchmark/src/internal_macros.h b/utils/google-benchmark/src/internal_macros.h
+index 5dbf4fd27521..4699c5ed9139 100644
+--- a/utils/google-benchmark/src/internal_macros.h
++++ b/utils/google-benchmark/src/internal_macros.h
+@@ -70,6 +70,8 @@
+ #define BENCHMARK_OS_FUCHSIA 1
+ #elif defined (__SVR4) && defined (__sun)
+ #define BENCHMARK_OS_SOLARIS 1
++#elif defined(__GENODE__)
++  #define BENCHMARK_OS_GENODE 1
+ #endif
+ 
+ #if defined(__ANDROID__) && defined(__GLIBCXX__)

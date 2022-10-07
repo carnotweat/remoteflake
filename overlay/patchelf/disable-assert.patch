@@ -1,0 +1,13 @@
+diff --git a/src/patchelf.cc b/src/patchelf.cc
+index 0c672e1..d9c2efb 100644
+--- a/src/patchelf.cc
++++ b/src/patchelf.cc
+@@ -894,7 +894,7 @@ void ElfFile<ElfFileParamNames>::rewriteSectionsExecutable()
+     debug("first reserved offset/addr is 0x%x/0x%llx\n",
+         startOffset, (unsigned long long) startAddr);
+ 
+-    assert(startAddr % getPageSize() == startOffset % getPageSize());
++    //assert(startAddr % getPageSize() == startOffset % getPageSize());
+     Elf_Addr firstPage = startAddr - startOffset;
+     debug("first page is 0x%llx\n", (unsigned long long) firstPage);
+ 

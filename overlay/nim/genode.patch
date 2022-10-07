@@ -1,0 +1,344 @@
+From 3a857e39ff3c9c8e7883c6f8189ccd0278c8484e Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Sat, 8 Feb 2020 14:32:18 +0100
+Subject: [PATCH 1/6] Genode: move dyncall failures to runtime
+
+Do not use the "error" pragma to warn that dynamic library loading is
+not implemented, print a message at runtime and exit.
+---
+ lib/pure/dynlib.nim     | 26 ++++++++++++++++++++++++++
+ lib/system/dyncalls.nim | 15 +++++++++------
+ 2 files changed, 35 insertions(+), 6 deletions(-)
+
+diff --git a/lib/pure/dynlib.nim b/lib/pure/dynlib.nim
+index 42d13535f..d8934b0f0 100644
+--- a/lib/pure/dynlib.nim
++++ b/lib/pure/dynlib.nim
+@@ -150,6 +150,32 @@ elif defined(nintendoswitch):
+   proc symAddr(lib: LibHandle, name: cstring): pointer =
+     raise newException(OSError, "symAddr not implemented on Nintendo Switch!")
+ 
++elif defined(genode):
++  #
++  # =========================================================================
++  # Not implemented for Genode without POSIX. Raise an error if called.
++  # =========================================================================
++  #
++
++  template raiseErr(prc: string) =
++    raise newException(OSError, prc & " not implemented, compile with POSIX suport")
++
++  proc dlclose(lib: LibHandle) =
++    raiseErr(OSError, "dlclose")
++  proc dlopen(path: cstring, mode: int): LibHandle =
++    raiseErr(OSError, "dlopen")
++  proc dlsym(lib: LibHandle, name: cstring): pointer =
++    raiseErr(OSError, "dlsym")
++  proc loadLib(path: string, global_symbols = false): LibHandle =
++    raiseErr(OSError, "loadLib")
++  proc loadLib(): LibHandle =
++    raiseErr(OSError, "loadLib")
++  proc unloadLib(lib: LibHandle) =
++    raiseErr(OSError, "unloadLib")
++  proc symAddr(lib: LibHandle, name: cstring): pointer =
++    raiseErr(OSError, "symAddr")
++
++
+ elif defined(windows) or defined(dos):
+   #
+   # =======================================================================
+diff --git a/lib/system/dyncalls.nim b/lib/system/dyncalls.nim
+index 1b0a3e64c..d1c6c2bd3 100644
+--- a/lib/system/dyncalls.nim
++++ b/lib/system/dyncalls.nim
+@@ -170,14 +170,17 @@ elif defined(windows) or defined(dos):
+ 
+ elif defined(genode):
+ 
+-  proc nimUnloadLibrary(lib: LibHandle) {.
+-    error: "nimUnloadLibrary not implemented".}
++  proc nimUnloadLibrary(lib: LibHandle) =
++    writeToStdErr("nimUnloadLibrary not implemented")
++    quit(1)
+ 
+-  proc nimLoadLibrary(path: string): LibHandle {.
+-    error: "nimLoadLibrary not implemented".}
++  proc nimLoadLibrary(path: string): LibHandle =
++    writeToStdErr("nimLoadLibrary not implemented")
++    quit(1)
+ 
+-  proc nimGetProcAddr(lib: LibHandle, name: cstring): ProcAddr {.
+-    error: "nimGetProcAddr not implemented".}
++  proc nimGetProcAddr(lib: LibHandle, name: cstring): ProcAddr =
++    writeToStdErr("nimGetProcAddr not implemented")
++    quit(1)
+ 
+ elif defined(nintendoswitch) or defined(freertos):
+   proc nimUnloadLibrary(lib: LibHandle) =
+-- 
+2.30.1
+
+
+From 70563e3a3d5357020c6e86db890b8f91026f7e6b Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Tue, 15 Oct 2019 10:19:27 +0200
+Subject: [PATCH 2/6] Genode: use stricter dataspace type in page allocator
+
+---
+ lib/genode/alloc.nim | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/lib/genode/alloc.nim b/lib/genode/alloc.nim
+index a21a3ad7b..3ddd3074b 100644
+--- a/lib/genode/alloc.nim
++++ b/lib/genode/alloc.nim
+@@ -17,18 +17,18 @@ when not defined(genode):
+ when not declared(GenodeEnv):
+   include genode/env
+ 
+-type DataspaceCapability {.
+-  importcpp: "Genode::Dataspace_capability", pure.} = object
++type RamDataspaceCapability {.
++  importcpp: "Genode::Ram_dataspace_capability", pure.} = object
+ 
+ type
+   Map = object
+     attachment: pointer
+     size: int
+-    ds: DataspaceCapability
++    ds: RamDataspaceCapability
+ 
+   SlabMeta = object
+     next: ptr MapSlab
+-    ds: DataspaceCapability
++    ds: RamDataspaceCapability
+ 
+   MapSlab = object
+     meta: SlabMeta
+@@ -45,11 +45,11 @@ proc capsAvail(env: GenodeEnv): int {.
+   ## Return the number of available capabilities.
+   ## Each dataspace allocation consumes a capability.
+ 
+-proc allocDataspace(env: GenodeEnv; size: int): DataspaceCapability {.
++proc allocDataspace(env: GenodeEnv; size: int): RamDataspaceCapability {.
+   importcpp: "#->pd().alloc(@)".}
+   ## Allocate a dataspace and its capability.
+ 
+-proc attachDataspace(env: GenodeEnv; ds: DataspaceCapability): pointer {.
++proc attachDataspace(env: GenodeEnv; ds: RamDataspaceCapability): pointer {.
+   importcpp: "#->rm().attach(@)".}
+   ## Attach a dataspace into the component address-space.
+ 
+@@ -57,7 +57,7 @@ proc detachAddress(env: GenodeEnv; p: pointer) {.
+   importcpp: "#->rm().detach(@)".}
+   ## Detach a dataspace from the component address-space.
+ 
+-proc freeDataspace(env: GenodeEnv; ds: DataspaceCapability) {.
++proc freeDataspace(env: GenodeEnv; ds: RamDataspaceCapability) {.
+   importcpp: "#->pd().free(@)".}
+   ## Free a dataspace.
+ 
+-- 
+2.30.1
+
+
+From e8809265a69c0110db4ded42ef01703118688439 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Tue, 7 Apr 2020 10:03:13 +0530
+Subject: [PATCH 3/6] Genode: remove compiler configuration from nim.cfg
+
+Self-hosting Nim is not supported on Genode and defining the
+cross-compilation environment can be done externally.
+---
+ config/nim.cfg | 25 +------------------------
+ 1 file changed, 1 insertion(+), 24 deletions(-)
+
+diff --git a/config/nim.cfg b/config/nim.cfg
+index a33a2f0a9..fca38bf8b 100644
+--- a/config/nim.cfg
++++ b/config/nim.cfg
+@@ -111,7 +111,7 @@ path="$lib/pure"
+ @end
+ 
+ @if unix:
+-  @if not bsd or haiku:
++  @if not (bsd or haiku or genode):
+     # -fopenmp
+     gcc.options.linker = "-ldl"
+     gcc.cpp.options.linker = "-ldl"
+@@ -295,29 +295,6 @@ vcc.cpp.options.size = "/O1"
+ # Configuration for the Tiny C Compiler:
+ tcc.options.always = "-w"
+ 
+-# Configuration for the Genode toolchain
+-@if genode:
+-  noCppExceptions # avoid std C++
+-  tlsEmulation:on # no TLS segment register magic
+-  @if i386 or amd64:
+-    gcc.exe = "genode-x86-gcc"
+-    gcc.cpp.exe = "genode-x86-g++"
+-    gcc.cpp.linkerexe = "genode-x86-ld"
+-  @elif arm:
+-    gcc.exe = "genode-arm-gcc"
+-    gcc.cpp.exe = "genode-arm-g++"
+-    gcc.cpp.linkerexe = "genode-arm-ld"
+-  @elif arm64:
+-    gcc.exe = "genode-aarch64-gcc"
+-    gcc.cpp.exe = "genode-aarch64-g++"
+-    gcc.cpp.linkerexe = "genode-aarch64-ld"
+-  @elif riscv64:
+-    gcc.exe = "genode-riscv-gcc"
+-    gcc.cpp.exe = "genode-riscv-g++"
+-    gcc.cpp.linkerexe = "genode-riscv-ld"
+-  @end
+-@end
+-
+ @if arm or arm64:
+   --define:nimEmulateOverflowChecks
+ @end
+-- 
+2.30.1
+
+
+From fc3193dd952012284246da027e634bb7a8f31581 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Fri, 4 Dec 2020 12:53:51 +0100
+Subject: [PATCH 4/6] Genode: use new mutex API
+
+---
+ lib/genode_cpp/syslocks.h | 20 +++++++++-----------
+ 1 file changed, 9 insertions(+), 11 deletions(-)
+
+diff --git a/lib/genode_cpp/syslocks.h b/lib/genode_cpp/syslocks.h
+index 8ba39abc2..c50180903 100644
+--- a/lib/genode_cpp/syslocks.h
++++ b/lib/genode_cpp/syslocks.h
+@@ -13,7 +13,7 @@
+ 
+ /* Genode includes */
+ #include <base/semaphore.h>
+-#include <base/lock.h>
++#include <base/mutex.h>
+ 
+ namespace Nim {
+ 	struct SysLock;
+@@ -22,15 +22,14 @@ namespace Nim {
+ 
+ struct Nim::SysLock
+ {
+-	Genode::Lock _lock_a, _lock_b;
++	Genode::Mutex _mutex_a, _mutex_b;
+ 	bool         _locked;
+ 
+ 	void acquireSys()
+ 	{
+-		_lock_a.lock();
++		Genode::Mutex::Guard guard(_mutex_a);
+ 		_locked = true;
+-		_lock_a.unlock();
+-		_lock_b.lock();
++		_mutex_b.acquire();
+ 	}
+ 
+ 	bool tryAcquireSys()
+@@ -38,23 +37,22 @@ struct Nim::SysLock
+ 		if (_locked)
+ 			return false;
+ 
+-		_lock_a.lock();
++		Genode::Mutex::Guard guard(_mutex_a);
++
+ 		if (_locked) {
+-			_lock_a.unlock();
+ 			return false;
+ 		} else {
+ 			_locked = true;
+-			_lock_b.lock();
+-			_lock_a.unlock();
++			_mutex_b.acquire();
+ 			return true;
+ 		}
+ 	}
+ 
+ 	void releaseSys()
+ 	{
++		Genode::Mutex::Guard guard(_mutex_a);
+ 		_locked = false;
+-		_lock_a.unlock();
+-		_lock_b.unlock();
++		_mutex_b.release();
+ 	}
+ };
+ 
+-- 
+2.30.1
+
+
+From 497b7f6c26813cdf333558241fd7298ccc8c8f2c Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Mon, 5 Apr 2021 09:21:23 +0200
+Subject: [PATCH 5/6] Genode: call nim_component_construct as a C procedure
+
+---
+ compiler/cgen.nim | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/compiler/cgen.nim b/compiler/cgen.nim
+index 6bc6ca2d7..b924f9e10 100644
+--- a/compiler/cgen.nim
++++ b/compiler/cgen.nim
+@@ -1443,7 +1443,7 @@ proc genMainProc(m: BModule) =
+ 
+     GenodeNimMain =
+       "extern Genode::Env *nim_runtime_env;$N" &
+-      "extern void nim_component_construct(Genode::Env*);$N$N" &
++      "extern \"C\" void nim_component_construct(Genode::Env*);$N$N" &
+       NimMainBody
+ 
+     ComponentConstruct =
+-- 
+2.30.1
+
+
+From 78e08f16d4af8a8514d01ceda92663f57209e140 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Mon, 5 Apr 2021 17:44:31 +0200
+Subject: [PATCH 6/6] Genode: implement echo for NimStringV2
+
+---
+ compiler/ccgexprs.nim | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/compiler/ccgexprs.nim b/compiler/ccgexprs.nim
+index 4a469a013..54cfb494c 100644
+--- a/compiler/ccgexprs.nim
++++ b/compiler/ccgexprs.nim
+@@ -1107,15 +1107,21 @@ proc genEcho(p: BProc, n: PNode) =
+     # echo directly to the Genode LOG session
+     var args: Rope = nil
+     var a: TLoc
+-    for it in n.sons:
++    for i, it in n.sons:
+       if it.skipConv.kind == nkNilLit:
+         args.add(", \"\"")
+-      else:
++      elif n.len != 0:
+         initLocExpr(p, it, a)
+-        args.add(ropecg(p.module, ", Genode::Cstring($1->data, $1->len)", [rdLoc(a)]))
++        if 0 < i:
++          args.add(", ")
++        case detectStrVersion(p.module)
++        of 2:
++          args.add(ropecg(p.module, "Genode::Cstring($1.p->data, $1.len)", [a.rdLoc]))
++        else:
++          args.add(ropecg(p.module, "Genode::Cstring($1->data, $1->len)", [a.rdLoc]))
+     p.module.includeHeader("<base/log.h>")
+     p.module.includeHeader("<util/string.h>")
+-    linefmt(p, cpsStmts, """Genode::log(""$1);$n""", [args])
++    linefmt(p, cpsStmts, """Genode::log($1);$n""", [args])
+   else:
+     if n.len == 0:
+       linefmt(p, cpsStmts, "#echoBinSafe(NIM_NIL, $1);$n", [n.len])
+-- 
+2.30.1
+

@@ -1,0 +1,691 @@
+commit fa7ca48e401704446fcac8b3787cf2ad6c4db6c1
+Author: Emery Hemingway <ehmry@posteo.net>
+Date:   Tue Oct 20 19:17:19 2020 +0200
+
+    Log sodium_misuses
+
+diff --git a/src/libsodium/crypto_aead/aes256gcm/aesni/aead_aes256gcm_aesni.c b/src/libsodium/crypto_aead/aes256gcm/aesni/aead_aes256gcm_aesni.c
+index 69707a68..7e283e8e 100644
+--- a/src/libsodium/crypto_aead/aes256gcm/aesni/aead_aes256gcm_aesni.c
++++ b/src/libsodium/crypto_aead/aes256gcm/aesni/aead_aes256gcm_aesni.c
+@@ -525,7 +525,7 @@ crypto_aead_aes256gcm_encrypt_detached_afternm(unsigned char *c,
+     (void) nsec;
+     memcpy(H, ctx->H, sizeof H);
+     if (mlen > crypto_aead_aes256gcm_MESSAGEBYTES_MAX) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+     memcpy(&n2[0], npub, 3 * 4);
+     n2[3] = 0x01000000;
+@@ -663,7 +663,7 @@ crypto_aead_aes256gcm_decrypt_detached_afternm(unsigned char *m, unsigned char *
+ 
+     (void) nsec;
+     if (clen > crypto_aead_aes256gcm_MESSAGEBYTES_MAX) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+     mlen = clen;
+ 
+diff --git a/src/libsodium/crypto_aead/chacha20poly1305/sodium/aead_chacha20poly1305.c b/src/libsodium/crypto_aead/chacha20poly1305/sodium/aead_chacha20poly1305.c
+index c3540879..107d0406 100644
+--- a/src/libsodium/crypto_aead/chacha20poly1305/sodium/aead_chacha20poly1305.c
++++ b/src/libsodium/crypto_aead/chacha20poly1305/sodium/aead_chacha20poly1305.c
+@@ -72,7 +72,7 @@ crypto_aead_chacha20poly1305_encrypt(unsigned char *c,
+     int                ret;
+ 
+     if (mlen > crypto_aead_chacha20poly1305_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     ret = crypto_aead_chacha20poly1305_encrypt_detached(c,
+                                                         c + mlen, NULL,
+@@ -147,7 +147,7 @@ crypto_aead_chacha20poly1305_ietf_encrypt(unsigned char *c,
+     int                ret;
+ 
+     if (mlen > crypto_aead_chacha20poly1305_ietf_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     ret = crypto_aead_chacha20poly1305_ietf_encrypt_detached(c,
+                                                              c + mlen, NULL,
+diff --git a/src/libsodium/crypto_aead/xchacha20poly1305/sodium/aead_xchacha20poly1305.c b/src/libsodium/crypto_aead/xchacha20poly1305/sodium/aead_xchacha20poly1305.c
+index 07e36557..afc2d0fe 100644
+--- a/src/libsodium/crypto_aead/xchacha20poly1305/sodium/aead_xchacha20poly1305.c
++++ b/src/libsodium/crypto_aead/xchacha20poly1305/sodium/aead_xchacha20poly1305.c
+@@ -158,7 +158,7 @@ crypto_aead_xchacha20poly1305_ietf_encrypt(unsigned char *c,
+     int                ret;
+ 
+     if (mlen > crypto_aead_xchacha20poly1305_ietf_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     ret = crypto_aead_xchacha20poly1305_ietf_encrypt_detached
+         (c, c + mlen, NULL, m, mlen, ad, adlen, nsec, npub, k);
+diff --git a/src/libsodium/crypto_box/crypto_box_easy.c b/src/libsodium/crypto_box/crypto_box_easy.c
+index deb40b40..ea9594d9 100644
+--- a/src/libsodium/crypto_box/crypto_box_easy.c
++++ b/src/libsodium/crypto_box/crypto_box_easy.c
+@@ -42,7 +42,7 @@ crypto_box_easy_afternm(unsigned char *c, const unsigned char *m,
+                         const unsigned char *k)
+ {
+     if (mlen > crypto_box_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return crypto_box_detached_afternm(c + crypto_box_MACBYTES, c, m, mlen, n,
+                                        k);
+@@ -54,7 +54,7 @@ crypto_box_easy(unsigned char *c, const unsigned char *m,
+                 const unsigned char *pk, const unsigned char *sk)
+ {
+     if (mlen > crypto_box_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return crypto_box_detached(c + crypto_box_MACBYTES, c, m, mlen, n,
+                                pk, sk);
+diff --git a/src/libsodium/crypto_box/curve25519xchacha20poly1305/box_curve25519xchacha20poly1305.c b/src/libsodium/crypto_box/curve25519xchacha20poly1305/box_curve25519xchacha20poly1305.c
+index 5e2532ea..cbc0d744 100644
+--- a/src/libsodium/crypto_box/curve25519xchacha20poly1305/box_curve25519xchacha20poly1305.c
++++ b/src/libsodium/crypto_box/curve25519xchacha20poly1305/box_curve25519xchacha20poly1305.c
+@@ -88,7 +88,7 @@ crypto_box_curve25519xchacha20poly1305_easy_afternm(unsigned char *c,
+                                                     const unsigned char *k)
+ {
+     if (mlen > crypto_box_curve25519xchacha20poly1305_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return crypto_box_curve25519xchacha20poly1305_detached_afternm(
+         c + crypto_box_curve25519xchacha20poly1305_MACBYTES, c, m, mlen, n, k);
+@@ -100,7 +100,7 @@ crypto_box_curve25519xchacha20poly1305_easy(
+     const unsigned char *n, const unsigned char *pk, const unsigned char *sk)
+ {
+     if (mlen > crypto_box_curve25519xchacha20poly1305_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return crypto_box_curve25519xchacha20poly1305_detached(
+         c + crypto_box_curve25519xchacha20poly1305_MACBYTES, c, m, mlen, n, pk,
+diff --git a/src/libsodium/crypto_generichash/blake2b/ref/blake2b-ref.c b/src/libsodium/crypto_generichash/blake2b/ref/blake2b-ref.c
+index a1beacf3..c40dd7ce 100644
+--- a/src/libsodium/crypto_generichash/blake2b/ref/blake2b-ref.c
++++ b/src/libsodium/crypto_generichash/blake2b/ref/blake2b-ref.c
+@@ -128,7 +128,7 @@ blake2b_init(blake2b_state *S, const uint8_t outlen)
+     blake2b_param P[1];
+ 
+     if ((!outlen) || (outlen > BLAKE2B_OUTBYTES)) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     P->digest_length = outlen;
+     P->key_length    = 0;
+@@ -151,7 +151,7 @@ blake2b_init_salt_personal(blake2b_state *S, const uint8_t outlen,
+     blake2b_param P[1];
+ 
+     if ((!outlen) || (outlen > BLAKE2B_OUTBYTES)) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     P->digest_length = outlen;
+     P->key_length    = 0;
+@@ -182,10 +182,10 @@ blake2b_init_key(blake2b_state *S, const uint8_t outlen, const void *key,
+     blake2b_param P[1];
+ 
+     if ((!outlen) || (outlen > BLAKE2B_OUTBYTES)) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (!key || !keylen || keylen > BLAKE2B_KEYBYTES) {
+-        sodium_misuse(); /* does not return */
++        sodium_misused(); /* does not return */
+     }
+     P->digest_length = outlen;
+     P->key_length    = keylen;
+@@ -200,7 +200,7 @@ blake2b_init_key(blake2b_state *S, const uint8_t outlen, const void *key,
+     memset(P->personal, 0, sizeof(P->personal));
+ 
+     if (blake2b_init_param(S, P) < 0) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     {
+         uint8_t block[BLAKE2B_BLOCKBYTES];
+@@ -220,10 +220,10 @@ blake2b_init_key_salt_personal(blake2b_state *S, const uint8_t outlen,
+     blake2b_param P[1];
+ 
+     if ((!outlen) || (outlen > BLAKE2B_OUTBYTES)) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (!key || !keylen || keylen > BLAKE2B_KEYBYTES) {
+-        sodium_misuse(); /* does not return */
++        sodium_misused(); /* does not return */
+     }
+     P->digest_length = outlen;
+     P->key_length    = keylen;
+@@ -246,7 +246,7 @@ blake2b_init_key_salt_personal(blake2b_state *S, const uint8_t outlen,
+     }
+ 
+     if (blake2b_init_param(S, P) < 0) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     {
+         uint8_t block[BLAKE2B_BLOCKBYTES];
+@@ -294,7 +294,7 @@ blake2b_final(blake2b_state *S, uint8_t *out, uint8_t outlen)
+     unsigned char buffer[BLAKE2B_OUTBYTES];
+ 
+     if (!outlen || outlen > BLAKE2B_OUTBYTES) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (blake2b_is_lastblock(S)) {
+         return -1;
+@@ -339,27 +339,27 @@ blake2b(uint8_t *out, const void *in, const void *key, const uint8_t outlen,
+ 
+     /* Verify parameters */
+     if (NULL == in && inlen > 0) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (NULL == out) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (!outlen || outlen > BLAKE2B_OUTBYTES) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (NULL == key && keylen > 0) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (keylen > BLAKE2B_KEYBYTES) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (keylen > 0) {
+         if (blake2b_init_key(S, outlen, key, keylen) < 0) {
+-            sodium_misuse();
++            sodium_misused();
+         }
+     } else {
+         if (blake2b_init(S, outlen) < 0) {
+-            sodium_misuse();
++            sodium_misused();
+         }
+     }
+ 
+@@ -377,28 +377,28 @@ blake2b_salt_personal(uint8_t *out, const void *in, const void *key,
+ 
+     /* Verify parameters */
+     if (NULL == in && inlen > 0) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (NULL == out) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (!outlen || outlen > BLAKE2B_OUTBYTES) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (NULL == key && keylen > 0) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (keylen > BLAKE2B_KEYBYTES) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if (keylen > 0) {
+         if (blake2b_init_key_salt_personal(S, outlen, key, keylen, salt,
+                                            personal) < 0) {
+-            sodium_misuse();
++            sodium_misused();
+         }
+     } else {
+         if (blake2b_init_salt_personal(S, outlen, salt, personal) < 0) {
+-            sodium_misuse();
++            sodium_misused();
+         }
+     }
+ 
+diff --git a/src/libsodium/crypto_kx/crypto_kx.c b/src/libsodium/crypto_kx/crypto_kx.c
+index 9f0c3aef..060e5373 100644
+--- a/src/libsodium/crypto_kx/crypto_kx.c
++++ b/src/libsodium/crypto_kx/crypto_kx.c
+@@ -49,7 +49,7 @@ crypto_kx_client_session_keys(unsigned char rx[crypto_kx_SESSIONKEYBYTES],
+         tx = rx;
+     }
+     if (rx == NULL) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+     if (crypto_scalarmult(q, client_sk, server_pk) != 0) {
+         return -1;
+@@ -90,7 +90,7 @@ crypto_kx_server_session_keys(unsigned char rx[crypto_kx_SESSIONKEYBYTES],
+         tx = rx;
+     }
+     if (rx == NULL) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+     if (crypto_scalarmult(q, server_sk, client_pk) != 0) {
+         return -1;
+diff --git a/src/libsodium/crypto_pwhash/crypto_pwhash.c b/src/libsodium/crypto_pwhash/crypto_pwhash.c
+index a229b9f7..fd41b3f9 100644
+--- a/src/libsodium/crypto_pwhash/crypto_pwhash.c
++++ b/src/libsodium/crypto_pwhash/crypto_pwhash.c
+@@ -166,7 +166,7 @@ crypto_pwhash_str_alg(char out[crypto_pwhash_STRBYTES],
+         return crypto_pwhash_argon2id_str(out, passwd, passwdlen,
+                                           opslimit, memlimit);
+     }
+-    sodium_misuse();
++    sodium_misused();
+     /* NOTREACHED */
+     return -1;
+ }
+diff --git a/src/libsodium/crypto_pwhash/scryptsalsa208sha256/pbkdf2-sha256.c b/src/libsodium/crypto_pwhash/scryptsalsa208sha256/pbkdf2-sha256.c
+index 42cab61f..ded48295 100644
+--- a/src/libsodium/crypto_pwhash/scryptsalsa208sha256/pbkdf2-sha256.c
++++ b/src/libsodium/crypto_pwhash/scryptsalsa208sha256/pbkdf2-sha256.c
+@@ -60,7 +60,7 @@ PBKDF2_SHA256(const uint8_t *passwd, size_t passwdlen, const uint8_t *salt,
+     COMPILER_ASSERT(crypto_pwhash_scryptsalsa208sha256_BYTES_MAX
+                     <= 0x1fffffffe0ULL);
+     if (dkLen > 0x1fffffffe0ULL) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+ #endif
+     crypto_auth_hmacsha256_init(&PShctx, passwd, passwdlen);
+diff --git a/src/libsodium/crypto_secretbox/crypto_secretbox_easy.c b/src/libsodium/crypto_secretbox/crypto_secretbox_easy.c
+index b1203849..233ec20e 100644
+--- a/src/libsodium/crypto_secretbox/crypto_secretbox_easy.c
++++ b/src/libsodium/crypto_secretbox/crypto_secretbox_easy.c
+@@ -73,7 +73,7 @@ crypto_secretbox_easy(unsigned char *c, const unsigned char *m,
+                       const unsigned char *k)
+ {
+     if (mlen > crypto_secretbox_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return crypto_secretbox_detached(c + crypto_secretbox_MACBYTES,
+                                      c, m, mlen, n, k);
+diff --git a/src/libsodium/crypto_secretbox/xchacha20poly1305/secretbox_xchacha20poly1305.c b/src/libsodium/crypto_secretbox/xchacha20poly1305/secretbox_xchacha20poly1305.c
+index e76167d2..c1ecffcd 100644
+--- a/src/libsodium/crypto_secretbox/xchacha20poly1305/secretbox_xchacha20poly1305.c
++++ b/src/libsodium/crypto_secretbox/xchacha20poly1305/secretbox_xchacha20poly1305.c
+@@ -79,7 +79,7 @@ crypto_secretbox_xchacha20poly1305_easy(unsigned char *c,
+                                         const unsigned char *k)
+ {
+     if (mlen > crypto_secretbox_xchacha20poly1305_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return crypto_secretbox_xchacha20poly1305_detached
+         (c + crypto_secretbox_xchacha20poly1305_MACBYTES, c, m, mlen, n, k);
+diff --git a/src/libsodium/crypto_secretstream/xchacha20poly1305/secretstream_xchacha20poly1305.c b/src/libsodium/crypto_secretstream/xchacha20poly1305/secretstream_xchacha20poly1305.c
+index 2754a91c..47449bc0 100644
+--- a/src/libsodium/crypto_secretstream/xchacha20poly1305/secretstream_xchacha20poly1305.c
++++ b/src/libsodium/crypto_secretstream/xchacha20poly1305/secretstream_xchacha20poly1305.c
+@@ -126,7 +126,7 @@ crypto_secretstream_xchacha20poly1305_push
+     COMPILER_ASSERT(crypto_secretstream_xchacha20poly1305_MESSAGEBYTES_MAX
+                     <= crypto_aead_chacha20poly1305_ietf_MESSAGEBYTES_MAX);
+     if (mlen > crypto_secretstream_xchacha20poly1305_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     crypto_stream_chacha20_ietf(block, sizeof block, state->nonce, state->k);
+     crypto_onetimeauth_poly1305_init(&poly1305_state, block);
+@@ -202,7 +202,7 @@ crypto_secretstream_xchacha20poly1305_pull
+     }
+     mlen = inlen - crypto_secretstream_xchacha20poly1305_ABYTES;
+     if (mlen > crypto_secretstream_xchacha20poly1305_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     crypto_stream_chacha20_ietf(block, sizeof block, state->nonce, state->k);
+     crypto_onetimeauth_poly1305_init(&poly1305_state, block);
+diff --git a/src/libsodium/crypto_stream/chacha20/stream_chacha20.c b/src/libsodium/crypto_stream/chacha20/stream_chacha20.c
+index 427c3fb0..e753055d 100644
+--- a/src/libsodium/crypto_stream/chacha20/stream_chacha20.c
++++ b/src/libsodium/crypto_stream/chacha20/stream_chacha20.c
+@@ -56,7 +56,7 @@ crypto_stream_chacha20(unsigned char *c, unsigned long long clen,
+                        const unsigned char *n, const unsigned char *k)
+ {
+     if (clen > crypto_stream_chacha20_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return implementation->stream(c, clen, n, k);
+ }
+@@ -68,7 +68,7 @@ crypto_stream_chacha20_xor_ic(unsigned char *c, const unsigned char *m,
+                               const unsigned char *k)
+ {
+     if (mlen > crypto_stream_chacha20_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return implementation->stream_xor_ic(c, m, mlen, n, ic, k);
+ }
+@@ -79,7 +79,7 @@ crypto_stream_chacha20_xor(unsigned char *c, const unsigned char *m,
+                            const unsigned char *k)
+ {
+     if (mlen > crypto_stream_chacha20_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return implementation->stream_xor_ic(c, m, mlen, n, 0U, k);
+ }
+@@ -89,7 +89,7 @@ crypto_stream_chacha20_ietf_ext(unsigned char *c, unsigned long long clen,
+                                 const unsigned char *n, const unsigned char *k)
+ {
+     if (clen > crypto_stream_chacha20_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return implementation->stream_ietf_ext(c, clen, n, k);
+ }
+@@ -101,7 +101,7 @@ crypto_stream_chacha20_ietf_ext_xor_ic(unsigned char *c, const unsigned char *m,
+                                        const unsigned char *k)
+ {
+     if (mlen > crypto_stream_chacha20_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return implementation->stream_ietf_ext_xor_ic(c, m, mlen, n, ic, k);
+ }
+@@ -112,7 +112,7 @@ crypto_stream_chacha20_ietf_ext_xor(unsigned char *c, const unsigned char *m,
+                                     const unsigned char *k)
+ {
+     if (mlen > crypto_stream_chacha20_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return implementation->stream_ietf_ext_xor_ic(c, m, mlen, n, 0U, k);
+ }
+@@ -122,7 +122,7 @@ crypto_stream_chacha20_ietf(unsigned char *c, unsigned long long clen,
+                             const unsigned char *n, const unsigned char *k)
+ {
+     if (clen > crypto_stream_chacha20_ietf_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return crypto_stream_chacha20_ietf_ext(c, clen, n, k);
+ }
+@@ -135,7 +135,7 @@ crypto_stream_chacha20_ietf_xor_ic(unsigned char *c, const unsigned char *m,
+ {
+     if ((unsigned long long) ic >
+         (64ULL * (1ULL << 32)) / 64ULL - (mlen + 63ULL) / 64ULL) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return crypto_stream_chacha20_ietf_ext_xor_ic(c, m, mlen, n, ic, k);
+ }
+@@ -146,7 +146,7 @@ crypto_stream_chacha20_ietf_xor(unsigned char *c, const unsigned char *m,
+                                 const unsigned char *k)
+ {
+     if (mlen > crypto_stream_chacha20_ietf_MESSAGEBYTES_MAX) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     return crypto_stream_chacha20_ietf_ext_xor(c, m, mlen, n, k);
+ }
+diff --git a/src/libsodium/include/sodium/core.h b/src/libsodium/include/sodium/core.h
+index dd088d2c..3e0c944f 100644
+--- a/src/libsodium/include/sodium/core.h
++++ b/src/libsodium/include/sodium/core.h
+@@ -21,6 +21,12 @@ SODIUM_EXPORT
+ void sodium_misuse(void)
+             __attribute__ ((noreturn));
+ 
++#define sodium_misused() \
++{ \
++	printf("%s %s:%d", __func__, __FILE__, __LINE__); \
++	sodium_misuse(); \
++}
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/src/libsodium/randombytes/internal/randombytes_internal_random.c b/src/libsodium/randombytes/internal/randombytes_internal_random.c
+index f0794f80..7374c458 100644
+--- a/src/libsodium/randombytes/internal/randombytes_internal_random.c
++++ b/src/libsodium/randombytes/internal/randombytes_internal_random.c
+@@ -155,7 +155,7 @@ sodium_hrtime(void)
+     struct timeval tv;
+ 
+     if (gettimeofday(&tv, NULL) != 0) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+     return ((uint64_t) tv.tv_sec) * 1000000U + (uint64_t) tv.tv_usec;
+ }
+@@ -374,14 +374,14 @@ randombytes_internal_random_init(void)
+     assert((global.getentropy_available | global.getrandom_available) == 0);
+     if ((global.random_data_source_fd =
+          randombytes_internal_random_random_dev_open()) == -1) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+     errno = errno_save;
+     return;
+ # endif
+ /* LCOV_EXCL_STOP */
+ # ifndef HAVE_SAFE_ARC4RANDOM
+-    sodium_misuse();
++    sodium_misused();
+ # endif
+ }
+ 
+@@ -411,13 +411,13 @@ randombytes_internal_random_stir(void)
+ # ifdef HAVE_GETENTROPY
+      if (global.getentropy_available != 0) {
+          if (randombytes_getentropy(stream.key, sizeof stream.key) != 0) {
+-             sodium_misuse(); /* LCOV_EXCL_LINE */
++             sodium_misused(); /* LCOV_EXCL_LINE */
+          }
+      }
+ # elif defined(HAVE_LINUX_COMPATIBLE_GETRANDOM)
+      if (global.getrandom_available != 0) {
+          if (randombytes_linux_getrandom(stream.key, sizeof stream.key) != 0) {
+-             sodium_misuse(); /* LCOV_EXCL_LINE */
++             sodium_misused(); /* LCOV_EXCL_LINE */
+          }
+      }
+ # elif defined(NONEXISTENT_DEV_RANDOM) && defined(HAVE_SAFE_ARC4RANDOM)
+@@ -426,15 +426,15 @@ randombytes_internal_random_stir(void)
+     if (global.random_data_source_fd == -1 ||
+         safe_read(global.random_data_source_fd, stream.key,
+                   sizeof stream.key) != (ssize_t) sizeof stream.key) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+ # else
+-    sodium_misuse();
++    sodium_misused();
+ # endif
+ 
+ #else /* _WIN32 */
+     if (! RtlGenRandom((PVOID) stream.key, (ULONG) sizeof stream.key)) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+ #endif
+ 
+@@ -452,7 +452,7 @@ randombytes_internal_random_stir_if_needed(void)
+     if (stream.initialized == 0) {
+         randombytes_internal_random_stir();
+     } else if (global.pid != getpid()) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+ #else
+     if (stream.initialized == 0) {
+diff --git a/src/libsodium/randombytes/randombytes.c b/src/libsodium/randombytes/randombytes.c
+index 8ac085fc..5615c8c6 100644
+--- a/src/libsodium/randombytes/randombytes.c
++++ b/src/libsodium/randombytes/randombytes.c
+@@ -169,7 +169,7 @@ randombytes_buf_deterministic(void * const buf, const size_t size,
+ #if SIZE_MAX > 0x4000000000ULL
+     COMPILER_ASSERT(randombytes_BYTES_MAX <= 0x4000000000ULL);
+     if (size > 0x4000000000ULL) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+ #endif
+     crypto_stream_chacha20_ietf((unsigned char *) buf, (unsigned long long) size,
+diff --git a/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c b/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c
+index 6f0e3c09..a2c6ccad 100644
+--- a/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c
++++ b/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c
+@@ -280,7 +280,7 @@ randombytes_sysrandom_init(void)
+ 
+     if ((stream.random_data_source_fd =
+          randombytes_sysrandom_random_dev_open()) == -1) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+     errno = errno_save;
+ }
+@@ -350,22 +350,22 @@ randombytes_sysrandom_buf(void * const buf, const size_t size)
+ #  ifdef HAVE_LINUX_COMPATIBLE_GETRANDOM
+     if (stream.getrandom_available != 0) {
+         if (randombytes_linux_getrandom(buf, size) != 0) {
+-            sodium_misuse(); /* LCOV_EXCL_LINE */
++            sodium_misused(); /* LCOV_EXCL_LINE */
+         }
+         return;
+     }
+ #  endif
+     if (stream.random_data_source_fd == -1 ||
+         safe_read(stream.random_data_source_fd, buf, size) != (ssize_t) size) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+ # else /* _WIN32 */
+     COMPILER_ASSERT(randombytes_BYTES_MAX <= 0xffffffffUL);
+     if (size > (size_t) 0xffffffffUL) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+     if (! RtlGenRandom((PVOID) buf, (ULONG) size)) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+ # endif /* _WIN32 */
+ }
+diff --git a/src/libsodium/sodium/codecs.c b/src/libsodium/sodium/codecs.c
+index 77fa464c..168413f3 100644
+--- a/src/libsodium/sodium/codecs.c
++++ b/src/libsodium/sodium/codecs.c
+@@ -20,7 +20,7 @@ sodium_bin2hex(char *const hex, const size_t hex_maxlen,
+     int          c;
+ 
+     if (bin_len >= SIZE_MAX / 2 || hex_maxlen <= bin_len * 2U) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+     while (i < bin_len) {
+         c = bin[i] & 0xf;
+@@ -163,7 +163,7 @@ static void
+ sodium_base64_check_variant(const int variant)
+ {
+     if ((((unsigned int) variant) & ~ 0x6U) != 0x1U) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+ }
+ 
+@@ -200,7 +200,7 @@ sodium_bin2base64(char * const b64, const size_t b64_maxlen,
+         }
+     }
+     if (b64_maxlen <= b64_len) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     if ((((unsigned int) variant) & VARIANT_URLSAFE_MASK) != 0U) {
+         while (bin_pos < bin_len) {
+diff --git a/src/libsodium/sodium/utils.c b/src/libsodium/sodium/utils.c
+index 1fbd3a37..baa7d461 100644
+--- a/src/libsodium/sodium/utils.c
++++ b/src/libsodium/sodium/utils.c
+@@ -106,7 +106,7 @@ sodium_memzero(void * const pnt, const size_t len)
+     SecureZeroMemory(pnt, len);
+ #elif defined(HAVE_MEMSET_S)
+     if (len > 0U && memset_s(pnt, (rsize_t) len, 0, (rsize_t) len) != 0) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+ #elif defined(HAVE_EXPLICIT_BZERO)
+     explicit_bzero(pnt, len);
+@@ -395,7 +395,7 @@ _sodium_alloc_init(void)
+     page_size = (size_t) si.dwPageSize;
+ # endif
+     if (page_size < CANARY_SIZE || page_size < sizeof(size_t)) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+ #endif
+     randombytes_buf(canary, sizeof canary);
+@@ -549,7 +549,7 @@ _unprotected_ptr_from_user_ptr(void *const ptr)
+     page_mask = page_size - 1U;
+     unprotected_ptr_u = ((uintptr_t) canary_ptr & (uintptr_t) ~page_mask);
+     if (unprotected_ptr_u <= page_size * 2U) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+     return (unsigned char *) unprotected_ptr_u;
+ }
+@@ -579,7 +579,7 @@ _sodium_malloc(const size_t size)
+         return NULL;
+     }
+     if (page_size <= sizeof canary || page_size < sizeof unprotected_size) {
+-        sodium_misuse(); /* LCOV_EXCL_LINE */
++        sodium_misused(); /* LCOV_EXCL_LINE */
+     }
+     size_with_canary = (sizeof canary) + size;
+     unprotected_size = _page_round(size_with_canary);
+@@ -732,7 +732,7 @@ sodium_pad(size_t *padded_buflen_p, unsigned char *buf,
+         xpadlen -= unpadded_buflen % blocksize;
+     }
+     if ((size_t) SIZE_MAX - unpadded_buflen <= xpadlen) {
+-        sodium_misuse();
++        sodium_misused();
+     }
+     xpadded_len = unpadded_buflen + xpadlen;
+     if (xpadded_len >= max_buflen) {
+diff --git a/test/default/sodium_core.c b/test/default/sodium_core.c
+index a3985b0e..74b21b27 100644
+--- a/test/default/sodium_core.c
++++ b/test/default/sodium_core.c
+@@ -32,7 +32,7 @@ main(void)
+ 
+     sodium_set_misuse_handler(misuse_handler);
+ #ifndef __EMSCRIPTEN__
+-    sodium_misuse();
++    sodium_misused();
+     printf("Misuse handler returned\n");
+ #else
+     printf("misuse_handler()\n");
+
+commit d73eccad9a23f83eb2caadbc492b149380215289
+Author: Emery Hemingway <ehmry@posteo.net>
+Date:   Tue Oct 20 19:17:50 2020 +0200
+
+    Define HAVE_LINUX_COMPATIBLE_GETRANDOM for Genode
+
+diff --git a/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c b/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c
+index 6657e8e6..6f0e3c09 100644
+--- a/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c
++++ b/src/libsodium/randombytes/sysrandom/randombytes_sysrandom.c
+@@ -36,6 +36,8 @@
+ # if defined(__FreeBSD_version) && __FreeBSD_version >= 1200000
+ #  define HAVE_LINUX_COMPATIBLE_GETRANDOM
+ # endif
++#elif defined(__GENODE__)
++#  define HAVE_LINUX_COMPATIBLE_GETRANDOM
+ #endif
+ #if !defined(NO_BLOCKING_RANDOM_POLL) && defined(__linux__)
+ # define BLOCK_ON_DEV_RANDOM

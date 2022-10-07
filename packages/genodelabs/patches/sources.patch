@@ -1,0 +1,1769 @@
+From b712e49a3cfe42bb4dcfdda317fd2b2be041f471 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Mon, 6 Apr 2020 16:32:13 +0530
+Subject: [PATCH 01/24] ld: support for loading read-only segments
+
+---
+ repos/base/src/lib/ldso/include/file.h       | 24 ++++++++++++++++++--
+ repos/base/src/lib/ldso/include/region_map.h | 10 ++++++++
+ 2 files changed, 32 insertions(+), 2 deletions(-)
+
+diff --git a/repos/base/src/lib/ldso/include/file.h b/repos/base/src/lib/ldso/include/file.h
+index 1c9ce53ca3..6688f0edd2 100644
+--- a/repos/base/src/lib/ldso/include/file.h
++++ b/repos/base/src/lib/ldso/include/file.h
+@@ -34,6 +34,9 @@ namespace Linker {
+ 
+ 	static inline bool is_rw(Elf::Phdr const &ph) {
+ 		return ((ph.p_flags & PF_MASK) == (PF_R | PF_W)); }
++
++	static inline bool is_ro(Elf::Phdr const &ph) {
++		return ((ph.p_flags & PF_MASK) == PF_R); }
+ }
+ 
+ 
+@@ -280,15 +283,21 @@ struct Linker::Elf_file : File
+ 			else if (is_rw(*ph))
+ 				load_segment_rw(*ph, i);
+ 
++			else if (is_ro(*ph))
++				load_segment_ro(*ph);
++
+ 			else {
+-				error("LD: Non-RW/RX segment");
++				auto X = ph->p_flags & PF_X ? "X" : "-";
++				auto W = ph->p_flags & PF_W ? "W" : "-";
++				auto R = ph->p_flags & PF_R ? "R" : "-";
++				error("LD: unhandled ", X,W,R, " segment at file offset ", Hex(ph->p_offset));
+ 				throw Invalid_file();
+ 			}
+ 		}
+ 	}
+ 
+ 	/**
+-	 * Map read-only segment
++	 * Map read-execute-only segment
+ 	 */
+ 	void load_segment_rx(Elf::Phdr const &p)
+ 	{
+@@ -318,6 +327,17 @@ struct Linker::Elf_file : File
+ 		env.rm().detach(src);
+ 	}
+ 
++	/**
++	 * Map read-only segment
++	 */
++	void load_segment_ro(Elf::Phdr const &p)
++	{
++		Region_map::r()->attach_readonly(rom_cap,
++		                                 trunc_page(p.p_vaddr) + reloc_base,
++		                                 round_page(p.p_memsz),
++		                                 trunc_page(p.p_offset));
++	}
++
+ 	/**
+ 	 * Unmap segements, RM regions, and free allocated dataspaces
+ 	 */
+diff --git a/repos/base/src/lib/ldso/include/region_map.h b/repos/base/src/lib/ldso/include/region_map.h
+index 78d2c7033d..f17d6dfec0 100644
+--- a/repos/base/src/lib/ldso/include/region_map.h
++++ b/repos/base/src/lib/ldso/include/region_map.h
+@@ -130,6 +130,16 @@ class Linker::Region_map
+ 				[&] () { _env.upgrade(Parent::Env::pd(), "ram_quota=8K"); });
+ 		}
+ 
++		Local_addr attach_readonly(Dataspace_capability ds, addr_t local_addr,
++		                           size_t size = 0, off_t offset = 0)
++		{
++			return retry<Genode::Out_of_ram>(
++				[&] () {
++					return _rm.attach(ds, size, offset, true, local_addr - _base, false, false);
++				},
++				[&] () { _env.upgrade(Parent::Env::pd(), "ram_quota=8K"); });
++		}
++
+ 		void detach(Local_addr local_addr) { _rm.detach((addr_t)local_addr - _base); }
+ };
+ 
+-- 
+2.31.0
+
+
+From de1380201ac0cd8731ceadbed99480f4b1b98ea8 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Sat, 25 Apr 2020 17:10:03 +0530
+Subject: [PATCH 02/24] init/sandbox: <routes> support
+
+Apply routing rules to a child from a <routes> node at the top-level of
+a sandbox config, unless the corresponding start node has as <route>
+node. If neither are present routes are taken from <default-route> as a
+fallback.
+
+Unlike the <route> and <default-route> the <routes> rules are checked by
+labels prefixed by child name, so <routes> may contain child-specific
+rules.
+---
+ repos/os/src/lib/sandbox/child.cc   | 12 +++++++++++-
+ repos/os/src/lib/sandbox/child.h    | 10 ++++++++++
+ repos/os/src/lib/sandbox/library.cc | 14 +++++++++++++-
+ repos/os/src/lib/sandbox/utils.h    |  8 +++++---
+ 4 files changed, 39 insertions(+), 5 deletions(-)
+
+diff --git a/repos/os/src/lib/sandbox/child.cc b/repos/os/src/lib/sandbox/child.cc
+index 41eb719fc6..dba813fdca 100644
+--- a/repos/os/src/lib/sandbox/child.cc
++++ b/repos/os/src/lib/sandbox/child.cc
+@@ -487,17 +487,25 @@ Sandbox::Child::resolve_session_request(Service::Name const &service_name,
+ 		return Route { _session_requester.service(), Session::Label(), diag };
+ 
+ 	try {
++		/* Lookup route in <default-route>… */
+ 		Xml_node route_node = _default_route_accessor.default_route();
++		/* …unless <routes> is present… */
++		route_node = _routes_accessor.routes(route_node);
+ 		try {
++			/* …otherwise use <child><route>. */
+ 			route_node = _start_node->xml().sub_node("route"); }
+ 		catch (...) { }
++
+ 		Xml_node service_node = route_node.sub_node();
+ 
++		/* <routes> is processed with the "«child» -> " prefix */
++		bool skip_prefix = route_node.type() != "routes";
++
+ 		for (; ; service_node = service_node.next()) {
+ 
+ 			bool service_wildcard = service_node.has_type("any-service");
+ 
+-			if (!service_node_matches(service_node, label, name(), service_name))
++			if (!service_node_matches(service_node, label, name(), service_name, skip_prefix))
+ 				continue;
+ 
+ 			Xml_node target = service_node.sub_node();
+@@ -705,6 +713,7 @@ Sandbox::Child::Child(Env                      &env,
+                       Report_update_trigger    &report_update_trigger,
+                       Xml_node                  start_node,
+                       Default_route_accessor   &default_route_accessor,
++                      Routes_accessor          &routes_accessor,
+                       Default_caps_accessor    &default_caps_accessor,
+                       Name_registry            &name_registry,
+                       Ram_quota                 ram_limit,
+@@ -722,6 +731,7 @@ Sandbox::Child::Child(Env                      &env,
+ 	_list_element(this),
+ 	_start_node(_alloc, start_node),
+ 	_default_route_accessor(default_route_accessor),
++	_routes_accessor(routes_accessor),
+ 	_default_caps_accessor(default_caps_accessor),
+ 	_ram_limit_accessor(ram_limit_accessor),
+ 	_cap_limit_accessor(cap_limit_accessor),
+diff --git a/repos/os/src/lib/sandbox/child.h b/repos/os/src/lib/sandbox/child.h
+index f338597f9c..01f464ffbe 100644
+--- a/repos/os/src/lib/sandbox/child.h
++++ b/repos/os/src/lib/sandbox/child.h
+@@ -52,6 +52,14 @@ class Sandbox::Child : Child_policy, Routed_service::Wakeup
+ 		struct Default_route_accessor : Interface { virtual Xml_node default_route() = 0; };
+ 		struct Default_caps_accessor  : Interface { virtual Cap_quota default_caps() = 0; };
+ 
++		struct Routes_accessor : Interface
++		{
++			virtual Xml_node routes(Xml_node _default)
++			{
++				return _default;
++			}
++		};
++
+ 		template <typename QUOTA>
+ 		struct Resource_limit_accessor : Interface
+ 		{
+@@ -98,6 +106,7 @@ class Sandbox::Child : Child_policy, Routed_service::Wakeup
+ 		bool const _use_ld = _start_node->xml().attribute_value("ld", true);
+ 
+ 		Default_route_accessor &_default_route_accessor;
++		Routes_accessor        &_routes_accessor;
+ 		Default_caps_accessor  &_default_caps_accessor;
+ 		Ram_limit_accessor     &_ram_limit_accessor;
+ 		Cap_limit_accessor     &_cap_limit_accessor;
+@@ -474,6 +483,7 @@ class Sandbox::Child : Child_policy, Routed_service::Wakeup
+ 		      Report_update_trigger    &report_update_trigger,
+ 		      Xml_node                  start_node,
+ 		      Default_route_accessor   &default_route_accessor,
++		      Routes_accessor          &route_accessor,
+ 		      Default_caps_accessor    &default_caps_accessor,
+ 		      Name_registry            &name_registry,
+ 		      Ram_quota                 ram_limit,
+diff --git a/repos/os/src/lib/sandbox/library.cc b/repos/os/src/lib/sandbox/library.cc
+index 2c5ba133b9..6ddc46e886 100644
+--- a/repos/os/src/lib/sandbox/library.cc
++++ b/repos/os/src/lib/sandbox/library.cc
+@@ -23,6 +23,7 @@
+ 
+ struct Genode::Sandbox::Library : ::Sandbox::State_reporter::Producer,
+                                   ::Sandbox::Child::Default_route_accessor,
++                                  ::Sandbox::Child::Routes_accessor,
+                                   ::Sandbox::Child::Default_caps_accessor,
+                                   ::Sandbox::Child::Ram_limit_accessor,
+                                   ::Sandbox::Child::Cap_limit_accessor
+@@ -52,6 +53,8 @@ struct Genode::Sandbox::Library : ::Sandbox::State_reporter::Producer,
+ 
+ 	Constructible<Buffered_xml> _default_route { };
+ 
++	Constructible<Buffered_xml> _routes { };
++
+ 	Cap_quota _default_caps { 0 };
+ 
+ 	unsigned _child_cnt = 0;
+@@ -140,6 +143,12 @@ struct Genode::Sandbox::Library : ::Sandbox::State_reporter::Producer,
+ 		                                    : Xml_node("<empty/>");
+ 	}
+ 
++	/**
++	 * Routes_accessor interface
++	 */
++	Xml_node routes(Xml_node _default) override {
++		return _routes.constructed() ? _routes->xml() : _default; }
++
+ 	/**
+ 	 * Default_caps_accessor interface
+ 	 */
+@@ -314,6 +323,9 @@ void Genode::Sandbox::Library::apply_config(Xml_node const &config)
+ 		_default_route.construct(_heap, config.sub_node("default-route")); }
+ 	catch (...) { }
+ 
++	try { _routes.construct(_heap, config.sub_node("routes")); }
++	catch (...) { }
++
+ 	_default_caps = Cap_quota { 0 };
+ 	try {
+ 		_default_caps = Cap_quota { config.sub_node("default")
+@@ -404,7 +416,7 @@ void Genode::Sandbox::Library::apply_config(Xml_node const &config)
+ 				Child &child = *new (_heap)
+ 					Child(_env, _heap, *_verbose,
+ 					      Child::Id { ++_child_cnt }, _state_reporter,
+-					      start_node, *this, *this, _children,
++					      start_node, *this, *this, *this, _children,
+ 					      Ram_quota { avail_ram.value  - used_ram.value },
+ 					      Cap_quota { avail_caps.value - used_caps.value },
+ 					       *this, *this, prio_levels, affinity_space,
+diff --git a/repos/os/src/lib/sandbox/utils.h b/repos/os/src/lib/sandbox/utils.h
+index 7afcaebf00..36aab737f2 100644
+--- a/repos/os/src/lib/sandbox/utils.h
++++ b/repos/os/src/lib/sandbox/utils.h
+@@ -59,7 +59,8 @@ namespace Sandbox {
+ 	inline bool service_node_matches(Xml_node           const  service_node,
+ 	                                 Session_label      const &label,
+ 	                                 Child_policy::Name const &child_name,
+-	                                 Service::Name      const &service_name)
++	                                 Service::Name      const &service_name,
++	                                 bool               skip_child_prefix = true)
+ 	{
+ 		bool const service_matches =
+ 			service_node.has_type("any-service") ||
+@@ -98,8 +99,9 @@ namespace Sandbox {
+ 		if (!route_depends_on_child_provided_label)
+ 			return true;
+ 
+-		char const * const scoped_label = skip_label_prefix(
+-			child_name.string(), label.string());
++		char const * const scoped_label = skip_child_prefix
++			? skip_label_prefix(child_name.string(), label.string())
++			: label.string();
+ 
+ 		if (!scoped_label)
+ 			return false;
+-- 
+2.31.0
+
+
+From a9bb435ac806ef49ce71e6295e7a41d31103139c Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Fri, 29 May 2020 18:42:57 +0530
+Subject: [PATCH 03/24] Use 128-byte strings for session labels
+
+Sixty-four bytes is insufficient for Nix store paths.
+---
+ repos/base/include/base/child.h              | 8 ++++----
+ repos/base/include/base/shared_object.h      | 2 +-
+ repos/base/src/lib/ldso/include/file.h       | 2 +-
+ repos/libports/src/lib/libc/internal/types.h | 2 +-
+ repos/libports/src/lib/libc/kernel.cc        | 2 +-
+ repos/os/src/lib/sandbox/child.h             | 1 -
+ 6 files changed, 8 insertions(+), 9 deletions(-)
+
+diff --git a/repos/base/include/base/child.h b/repos/base/include/base/child.h
+index cfcf8e7844..2babff2a5a 100644
+--- a/repos/base/include/base/child.h
++++ b/repos/base/include/base/child.h
+@@ -44,9 +44,9 @@ namespace Genode {
+  */
+ struct Genode::Child_policy
+ {
+-	typedef String<64> Name;
+-	typedef String<64> Binary_name;
+-	typedef String<64> Linker_name;
++	typedef String<128> Name;
++	typedef String<128> Binary_name;
++	typedef String<128> Linker_name;
+ 
+ 	virtual ~Child_policy() { }
+ 
+@@ -408,7 +408,7 @@ class Genode::Child : protected Rpc_object<Parent>,
+ 
+ 			Id_space<Parent::Client>::Id const _client_id;
+ 
+-			typedef String<64> Label;
++			typedef String<128> Label;
+ 
+ 			Args const _args;
+ 
+diff --git a/repos/base/include/base/shared_object.h b/repos/base/include/base/shared_object.h
+index f4dd1622fe..7ffe5fa34c 100644
+--- a/repos/base/include/base/shared_object.h
++++ b/repos/base/include/base/shared_object.h
+@@ -128,7 +128,7 @@ class Genode::Dynamic_linker
+ 		struct Object_info
+ 		{
+ 			/* name of shared library, or "binary" for the main program */
+-			typedef String<64> Name;
++			typedef String<128> Name;
+ 			Name name;
+ 
+ 			Rom_dataspace_capability ds_cap;
+diff --git a/repos/base/src/lib/ldso/include/file.h b/repos/base/src/lib/ldso/include/file.h
+index 6688f0edd2..e763264eee 100644
+--- a/repos/base/src/lib/ldso/include/file.h
++++ b/repos/base/src/lib/ldso/include/file.h
+@@ -101,7 +101,7 @@ struct Linker::Elf_file : File
+ 	Ram_dataspace_capability      ram_cap[Phdr::MAX_PHDR];
+ 	bool                    const loaded;
+ 
+-	typedef String<64> Name;
++	typedef String<128> Name;
+ 
+ 	Rom_dataspace_capability _rom_dataspace(Name const &name)
+ 	{
+diff --git a/repos/libports/src/lib/libc/internal/types.h b/repos/libports/src/lib/libc/internal/types.h
+index 233da10b47..afaee3f8d7 100644
+--- a/repos/libports/src/lib/libc/internal/types.h
++++ b/repos/libports/src/lib/libc/internal/types.h
+@@ -23,7 +23,7 @@ namespace Libc {
+ 	using namespace Genode;
+ 
+ 	typedef Genode::uint64_t uint64_t;
+-	typedef String<64> Binary_name;
++	typedef String<128> Binary_name;
+ }
+ 
+ #endif /* _LIBC__INTERNAL__TYPES_H_ */
+diff --git a/repos/libports/src/lib/libc/kernel.cc b/repos/libports/src/lib/libc/kernel.cc
+index 50fa93bac1..a0b3452919 100644
+--- a/repos/libports/src/lib/libc/kernel.cc
++++ b/repos/libports/src/lib/libc/kernel.cc
+@@ -370,7 +370,7 @@ void Libc::Kernel::_clone_state_from_parent()
+ 
+ 		/* clone RW segment of a shared library or the binary */
+ 		if (node.type() == "rw") {
+-			typedef String<64> Name;
++			typedef String<128> Name;
+ 			Name const name = node.attribute_value("name", Name());
+ 
+ 			/*
+diff --git a/repos/os/src/lib/sandbox/child.h b/repos/os/src/lib/sandbox/child.h
+index 01f464ffbe..6a141d549b 100644
+--- a/repos/os/src/lib/sandbox/child.h
++++ b/repos/os/src/lib/sandbox/child.h
+@@ -128,7 +128,6 @@ class Sandbox::Child : Child_policy, Routed_service::Wakeup
+ 			throw Missing_name_attribute();
+ 		}
+ 
+-		typedef String<64> Name;
+ 		Name const _unique_name { _name_from_xml(_start_node->xml()) };
+ 
+ 		static Binary_name _binary_from_xml(Xml_node start_node,
+-- 
+2.31.0
+
+
+From a7a3147c2397b5bd91652bbb39551984e6ecd1c1 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 4 Nov 2020 11:03:49 +0100
+Subject: [PATCH 04/24] init/sandbox: do not parse <parent-provides> if
+ <routes> is present
+
+---
+ repos/os/src/lib/sandbox/library.cc | 124 +++++++++++++++++++---------
+ 1 file changed, 85 insertions(+), 39 deletions(-)
+
+diff --git a/repos/os/src/lib/sandbox/library.cc b/repos/os/src/lib/sandbox/library.cc
+index 6ddc46e886..ec4ac87ed5 100644
+--- a/repos/os/src/lib/sandbox/library.cc
++++ b/repos/os/src/lib/sandbox/library.cc
+@@ -184,47 +184,93 @@ struct Genode::Sandbox::Library : ::Sandbox::State_reporter::Producer,
+ 
+ void Genode::Sandbox::Library::_update_parent_services_from_config(Xml_node const &config)
+ {
+-	Xml_node const node = config.has_sub_node("parent-provides")
+-	                    ? config.sub_node("parent-provides")
+-	                    : Xml_node("<empty/>");
+-
+-	/* remove services that are no longer present in config */
+-	_parent_services.for_each([&] (Parent_service &service) {
+-
+-		Service::Name const name = service.name();
+-
+-		bool obsolete = true;
++	if (config.has_sub_node("routes")) {
++		if (config.has_sub_node("parent-provides"))
++			warning("ignoring <parent-provides> and parsing <routes> instead");
++	
++		Xml_node const node = config.sub_node("routes");
++	
++		/* remove services that are no longer present in config */
++		_parent_services.for_each([&] (Parent_service &service) {
++
++			Service::Name const name = service.name();
++
++			bool obsolete = true;
++			node.for_each_sub_node("service", [&] (Xml_node service) {
++				if (obsolete && name == service.attribute_value("name", Service::Name())) {
++					obsolete = !service.has_sub_node("parent"); }});
++
++			if (obsolete)
++				service.abandon();
++		});
++	
++		/* used to prepend the list of new parent services with title */
++		bool first_log = true;
++	
++		/* register new services */
+ 		node.for_each_sub_node("service", [&] (Xml_node service) {
+-			if (name == service.attribute_value("name", Service::Name())) {
+-				obsolete = false; }});
+-
+-		if (obsolete)
+-			service.abandon();
+-	});
+-
+-	/* used to prepend the list of new parent services with title */
+-	bool first_log = true;
+-
+-	/* register new services */
+-	node.for_each_sub_node("service", [&] (Xml_node service) {
+-
+-		Service::Name const name = service.attribute_value("name", Service::Name());
+-
+-		bool registered = false;
+-		_parent_services.for_each([&] (Parent_service const &service) {
+-			if (service.name() == name)
+-				registered = true; });
+-
+-		if (!registered) {
+-			new (_heap) ::Sandbox::Parent_service(_parent_services, _env, name);
+-			if (_verbose->enabled()) {
+-				if (first_log)
+-					log("parent provides");
+-				log("  service \"", name, "\"");
+-				first_log = false;
++			if (service.has_sub_node("child")) return;
++	
++			Service::Name const name = service.attribute_value("name", Service::Name());
++	
++			bool registered = false;
++			_parent_services.for_each([&] (Parent_service const &service) {
++				if (service.name() == name)
++					registered = true; });
++	
++			if (!registered) {
++				new (_heap) ::Sandbox::Parent_service(_parent_services, _env, name);
++				if (_verbose->enabled()) {
++					if (first_log)
++						log("parent provides");
++					log("  service \"", name, "\"");
++					first_log = false;
++				}
+ 			}
+-		}
+-	});
++		});
++	} else {	
++		Xml_node const node = config.has_sub_node("parent-provides")
++		                    ? config.sub_node("parent-provides")
++		                    : Xml_node("<empty/>");
++	
++		/* remove services that are no longer present in config */
++		_parent_services.for_each([&] (Parent_service &service) {
++	
++			Service::Name const name = service.name();
++	
++			bool obsolete = true;
++			node.for_each_sub_node("service", [&] (Xml_node service) {
++				if (name == service.attribute_value("name", Service::Name())) {
++					obsolete = false; }});
++	
++			if (obsolete)
++				service.abandon();
++		});
++	
++		/* used to prepend the list of new parent services with title */
++		bool first_log = true;
++	
++		/* register new services */
++		node.for_each_sub_node("service", [&] (Xml_node service) {
++	
++			Service::Name const name = service.attribute_value("name", Service::Name());
++	
++			bool registered = false;
++			_parent_services.for_each([&] (Parent_service const &service) {
++				if (service.name() == name)
++					registered = true; });
++	
++			if (!registered) {
++				new (_heap) ::Sandbox::Parent_service(_parent_services, _env, name);
++				if (_verbose->enabled()) {
++					if (first_log)
++						log("parent provides");
++					log("  service \"", name, "\"");
++					first_log = false;
++				}
++			}
++		});
++	}
+ }
+ 
+ 
+-- 
+2.31.0
+
+
+From ff1a8382bb3c8c69e70fd5d7d9ab5e30055f7194 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 4 Nov 2020 20:02:03 +0100
+Subject: [PATCH 05/24] init/sandbox: simplify routing
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Remove <default-route>, <any-service>, and <any-child> configuration
+options.
+
+Allow label rewriting with <parent prefix="…" suffix="…">
+and <child name="…" prefix="…" suffix="…">.
+
+Routes are now selected by longest match rather than first match.
+---
+ repos/os/src/lib/sandbox/child.cc   | 131 ++++++++++------------------
+ repos/os/src/lib/sandbox/child.h    |   3 -
+ repos/os/src/lib/sandbox/library.cc |  12 +--
+ repos/os/src/lib/sandbox/utils.h    |  57 ++++++------
+ 4 files changed, 76 insertions(+), 127 deletions(-)
+
+diff --git a/repos/os/src/lib/sandbox/child.cc b/repos/os/src/lib/sandbox/child.cc
+index dba813fdca..1173c0687c 100644
+--- a/repos/os/src/lib/sandbox/child.cc
++++ b/repos/os/src/lib/sandbox/child.cc
+@@ -11,6 +11,7 @@
+  * under the terms of the GNU Affero General Public License version 3.
+  */
+ 
++#include <os/session_policy.h>
+ #include <vm_session/vm_session.h>
+ 
+ /* local includes */
+@@ -486,105 +487,65 @@ Sandbox::Child::resolve_session_request(Service::Name const &service_name,
+ 	 && label.last_element() == Session_requester::rom_name())
+ 		return Route { _session_requester.service(), Session::Label(), diag };
+ 
+-	try {
+-		/* Lookup route in <default-route>… */
+-		Xml_node route_node = _default_route_accessor.default_route();
+-		/* …unless <routes> is present… */
+-		route_node = _routes_accessor.routes(route_node);
+-		try {
+-			/* …otherwise use <child><route>. */
+-			route_node = _start_node->xml().sub_node("route"); }
+-		catch (...) { }
+-
+-		Xml_node service_node = route_node.sub_node();
+-
+-		/* <routes> is processed with the "«child» -> " prefix */
+-		bool skip_prefix = route_node.type() != "routes";
+-
+-		for (; ; service_node = service_node.next()) {
+-
+-			bool service_wildcard = service_node.has_type("any-service");
+-
+-			if (!service_node_matches(service_node, label, name(), service_name, skip_prefix))
+-				continue;
+-
+-			Xml_node target = service_node.sub_node();
+-			for (; ; target = target.next()) {
+-
+-				/*
+-				 * Determine session label to be provided to the server
+-				 *
+-				 * By default, the client's identity (accompanied with the a
+-				 * client-provided label) is presented as session label to the
+-				 * server. However, the target node can explicitly override the
+-				 * client's identity by a custom label via the 'label'
+-				 * attribute.
+-				 */
+-				typedef String<Session_label::capacity()> Label;
+-				Label const target_label =
+-					target.attribute_value("label", Label(label.string()));
+-
+-				Session::Diag const
+-					target_diag { target.attribute_value("diag", diag.enabled) };
+-
+-				auto no_filter = [] (Service &) -> bool { return false; };
+-
+-				if (target.has_type("parent")) {
+-
+-					try {
+-						return Route { find_service(_parent_services, service_name, no_filter),
+-						               target_label, target_diag };
+-					} catch (Service_denied) { }
++	{
++		Xml_node service_node("<deny/>");
++		Xml_node routes_node = _routes_accessor.routes(service_node);
++		Xml_node_label_score best_score;
++
++		routes_node.for_each_sub_node([&] (Xml_node const &node) {
++			if (service_node_matches(node, label, service_name)) {
++				Xml_node_label_score score(node, label);
++				if (score.stronger(best_score)
++				 || service_node.has_type("deny")) {
++					best_score = score;
++					service_node = node;
+ 				}
++			}
++		});
+ 
+-				if (target.has_type("local")) {
++		if (service_node.has_type("deny")) {
++			warning(name(), ": no route to service \"", service_name, "\" (label=\"", label, "\")");
++			throw Service_denied();
++		}
+ 
+-					try {
+-						return Route { find_service(_local_services, service_name, no_filter),
+-						               target_label, target_diag };
+-					} catch (Service_denied) { }
+-				}
++		for (Xml_node target_node = service_node.sub_node(); ;
++		     target_node = target_node.next()) {
+ 
+-				if (target.has_type("child")) {
++			Session_label the_label_part_of_label(skip_label_prefix(name().string(), label.string()));
++			if (the_label_part_of_label == "") the_label_part_of_label = label;
+ 
+-					typedef Name_registry::Name Name;
+-					Name server_name = target.attribute_value("name", Name());
+-					server_name = _name_registry.deref_alias(server_name);
++			auto target_label = Sandbox::target_label(
++				target_node, name(), the_label_part_of_label);
+ 
+-					auto filter_server_name = [&] (Routed_service &s) -> bool {
+-						return s.child_name() != server_name; };
++			Session::Diag const
++				target_diag { target_node.attribute_value("diag", false) };
+ 
+-					try {
+-						return Route { find_service(_child_services, service_name, filter_server_name),
+-						               target_label, target_diag };
++			auto no_filter = [] (Service &) -> bool { return false; };
+ 
+-					} catch (Service_denied) { }
+-				}
++			if (target_node.has_type("parent"))
++				return Route { find_service(_parent_services, service_name, no_filter),
++				               target_label, target_diag };
+ 
+-				if (target.has_type("any-child")) {
++			if (target_node.has_type("local"))
++				return Route { find_service(_local_services, service_name, no_filter),
++				               target_label, target_diag };
+ 
+-					if (is_ambiguous(_child_services, service_name)) {
+-						error(name(), ": ambiguous routes to "
+-						      "service \"", service_name, "\"");
+-						throw Service_denied();
+-					}
+-					try {
+-						return Route { find_service(_child_services, service_name, no_filter),
+-						               target_label, target_diag };
++			if (target_node.has_type("child")) {
+ 
+-					} catch (Service_denied) { }
+-				}
++				typedef Name_registry::Name Name;
++				Name server_name = target_node.attribute_value("name", Name());
++				server_name = _name_registry.deref_alias(server_name);
+ 
+-				if (!service_wildcard) {
+-					warning(name(), ": lookup for service \"", service_name, "\" failed");
+-					throw Service_denied();
+-				}
++				auto filter_server_name = [&] (Routed_service &s) -> bool {
++					return s.child_name() != server_name; };
+ 
+-				if (target.last())
+-					break;
++				return Route { find_service(_child_services, service_name, filter_server_name),
++				               target_label, target_diag };
+ 			}
++
++			if (target_node.last()) break;
+ 		}
+-	} catch (Xml_node::Nonexistent_sub_node) { }
++	}
+ 
+ 	warning(name(), ": no route to service \"", service_name, "\" (label=\"", label, "\")");
+ 	throw Service_denied();
+@@ -712,7 +673,6 @@ Sandbox::Child::Child(Env                      &env,
+                       Id                        id,
+                       Report_update_trigger    &report_update_trigger,
+                       Xml_node                  start_node,
+-                      Default_route_accessor   &default_route_accessor,
+                       Routes_accessor          &routes_accessor,
+                       Default_caps_accessor    &default_caps_accessor,
+                       Name_registry            &name_registry,
+@@ -730,7 +690,6 @@ Sandbox::Child::Child(Env                      &env,
+ 	_report_update_trigger(report_update_trigger),
+ 	_list_element(this),
+ 	_start_node(_alloc, start_node),
+-	_default_route_accessor(default_route_accessor),
+ 	_routes_accessor(routes_accessor),
+ 	_default_caps_accessor(default_caps_accessor),
+ 	_ram_limit_accessor(ram_limit_accessor),
+diff --git a/repos/os/src/lib/sandbox/child.h b/repos/os/src/lib/sandbox/child.h
+index 6a141d549b..c9eeb830b5 100644
+--- a/repos/os/src/lib/sandbox/child.h
++++ b/repos/os/src/lib/sandbox/child.h
+@@ -49,7 +49,6 @@ class Sandbox::Child : Child_policy, Routed_service::Wakeup
+ 		 */
+ 		struct Id { unsigned value; };
+ 
+-		struct Default_route_accessor : Interface { virtual Xml_node default_route() = 0; };
+ 		struct Default_caps_accessor  : Interface { virtual Cap_quota default_caps() = 0; };
+ 
+ 		struct Routes_accessor : Interface
+@@ -105,7 +104,6 @@ class Sandbox::Child : Child_policy, Routed_service::Wakeup
+ 		 */
+ 		bool const _use_ld = _start_node->xml().attribute_value("ld", true);
+ 
+-		Default_route_accessor &_default_route_accessor;
+ 		Routes_accessor        &_routes_accessor;
+ 		Default_caps_accessor  &_default_caps_accessor;
+ 		Ram_limit_accessor     &_ram_limit_accessor;
+@@ -481,7 +479,6 @@ class Sandbox::Child : Child_policy, Routed_service::Wakeup
+ 		      Id                        id,
+ 		      Report_update_trigger    &report_update_trigger,
+ 		      Xml_node                  start_node,
+-		      Default_route_accessor   &default_route_accessor,
+ 		      Routes_accessor          &route_accessor,
+ 		      Default_caps_accessor    &default_caps_accessor,
+ 		      Name_registry            &name_registry,
+diff --git a/repos/os/src/lib/sandbox/library.cc b/repos/os/src/lib/sandbox/library.cc
+index ec4ac87ed5..f12bf98f9d 100644
+--- a/repos/os/src/lib/sandbox/library.cc
++++ b/repos/os/src/lib/sandbox/library.cc
+@@ -22,7 +22,6 @@
+ #include <heartbeat.h>
+ 
+ struct Genode::Sandbox::Library : ::Sandbox::State_reporter::Producer,
+-                                  ::Sandbox::Child::Default_route_accessor,
+                                   ::Sandbox::Child::Routes_accessor,
+                                   ::Sandbox::Child::Default_caps_accessor,
+                                   ::Sandbox::Child::Ram_limit_accessor,
+@@ -134,15 +133,6 @@ struct Genode::Sandbox::Library : ::Sandbox::State_reporter::Producer,
+ 			_children.report_state(xml, detail);
+ 	}
+ 
+-	/**
+-	 * Default_route_accessor interface
+-	 */
+-	Xml_node default_route() override
+-	{
+-		return _default_route.constructed() ? _default_route->xml()
+-		                                    : Xml_node("<empty/>");
+-	}
+-
+ 	/**
+ 	 * Routes_accessor interface
+ 	 */
+@@ -462,7 +452,7 @@ void Genode::Sandbox::Library::apply_config(Xml_node const &config)
+ 				Child &child = *new (_heap)
+ 					Child(_env, _heap, *_verbose,
+ 					      Child::Id { ++_child_cnt }, _state_reporter,
+-					      start_node, *this, *this, *this, _children,
++					      start_node, *this, *this, _children,
+ 					      Ram_quota { avail_ram.value  - used_ram.value },
+ 					      Cap_quota { avail_caps.value - used_caps.value },
+ 					       *this, *this, prio_levels, affinity_space,
+diff --git a/repos/os/src/lib/sandbox/utils.h b/repos/os/src/lib/sandbox/utils.h
+index 36aab737f2..639a4be4dd 100644
+--- a/repos/os/src/lib/sandbox/utils.h
++++ b/repos/os/src/lib/sandbox/utils.h
+@@ -58,12 +58,9 @@ namespace Sandbox {
+ 	 */
+ 	inline bool service_node_matches(Xml_node           const  service_node,
+ 	                                 Session_label      const &label,
+-	                                 Child_policy::Name const &child_name,
+-	                                 Service::Name      const &service_name,
+-	                                 bool               skip_child_prefix = true)
++	                                 Service::Name      const &service_name)
+ 	{
+ 		bool const service_matches =
+-			service_node.has_type("any-service") ||
+ 			(service_node.has_type("service") &&
+ 			 service_node.attribute_value("name", Service::Name()) == service_name);
+ 
+@@ -72,7 +69,6 @@ namespace Sandbox {
+ 
+ 		typedef String<Session_label::capacity()> Label;
+ 
+-		char const *unscoped_attr   = "unscoped_label";
+ 		char const *label_last_attr = "label_last";
+ 
+ 		bool const route_depends_on_child_provided_label =
+@@ -81,34 +77,13 @@ namespace Sandbox {
+ 			service_node.has_attribute("label_suffix") ||
+ 			service_node.has_attribute(label_last_attr);
+ 
+-		if (service_node.has_attribute(unscoped_attr)) {
+-
+-			/*
+-			 * If an 'unscoped_label' attribute is provided, don't consider any
+-			 * scoped label attribute.
+-			 */
+-			if (route_depends_on_child_provided_label)
+-				warning("service node contains both scoped and unscoped label attributes");
+-
+-			return label == service_node.attribute_value(unscoped_attr, Label());
+-		}
+-
+ 		if (service_node.has_attribute(label_last_attr))
+ 			return service_node.attribute_value(label_last_attr, Label()) == label.last_element();
+ 
+ 		if (!route_depends_on_child_provided_label)
+ 			return true;
+ 
+-		char const * const scoped_label = skip_child_prefix
+-			? skip_label_prefix(child_name.string(), label.string())
+-			: label.string();
+-
+-		if (!scoped_label)
+-			return false;
+-
+-		Session_label const session_label(scoped_label);
+-
+-		return !Xml_node_label_score(service_node, session_label).conflict();
++		return !Xml_node_label_score(service_node, label).conflict();
+ 	}
+ 
+ 
+@@ -131,6 +106,34 @@ namespace Sandbox {
+ 		return cnt > 1;
+ 	}
+ 
++
++	/*
++	 * Determine session label to be provided to the server
++	 *
++	 * By default, the client's identity (accompanied with the a
++	 * client-provided label) is presented as session label to the
++	 * server. However, the target node can explicitly override the
++	 * client's identity by a custom label via the 'label' attribute or
++	 * by specifying a 'prefix' and 'suffix attributes.
++	 */
++	typedef String<Session_label::capacity()> Label;
++	inline Label target_label(Xml_node           const  node,
++	                          Child_policy::Name const &child_name,
++	                          Session_label      const &label)
++	{
++		if (node.has_attribute("label"))
++			return Session_label(node.attribute_value("label", Label()).string());
++
++		Label head = node.attribute_value("prefix", Label(child_name.string()));
++		Label tail = node.attribute_value("suffix", Label(child_name == label ? "" : label));
++
++		if (head == "") return tail;
++		if (tail == "") return head;
++
++		return Label(prefixed_label(head, tail).string());
++	}
++
++
+ 	/**
+ 	 * Find service with certain values in given registry
+ 	 *
+-- 
+2.31.0
+
+
+From 24d8689cdef4fb3941b73d6393a07ecad06a4910 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Sat, 7 Nov 2020 08:37:29 +0100
+Subject: [PATCH 06/24] core: log ROM requests with affirmative "diag" flag
+
+---
+ repos/base/src/core/include/rom_session_component.h | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/repos/base/src/core/include/rom_session_component.h b/repos/base/src/core/include/rom_session_component.h
+index c584701f5f..2c93302e14 100644
+--- a/repos/base/src/core/include/rom_session_component.h
++++ b/repos/base/src/core/include/rom_session_component.h
+@@ -35,12 +35,20 @@ namespace Genode {
+ 			{
+ 				/* extract label */
+ 				Session_label const label = label_from_args(args);
++				auto const name = label.last_element();
++
++				/* extract diag flag */
++				bool diag = session_diag_from_args(args).enabled;
+ 
+ 				/* find ROM module for trailing label element */
+-				Rom_module const * rom = rom_fs.find(label.last_element().string());
+-				if (rom)
++				Rom_module const * rom = rom_fs.find(name.string());
++
++				if (rom) {
++					if (diag) log("serve ROM \"", name, "\" to \"", label, "\"");
+ 					return *rom;
++				}
+ 
++				error("ROM not found for ", args);
+ 				throw Service_denied();
+ 			}
+ 
+-- 
+2.31.0
+
+
+From 466523a177a58436021e422459afed41efba6aef Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Sat, 7 Nov 2020 11:23:03 +0100
+Subject: [PATCH 07/24] base: fail on label truncation
+
+---
+ repos/base/include/base/session_label.h | 27 ++++++++++++++++++++++---
+ repos/base/include/util/arg_string.h    |  6 ++++++
+ 2 files changed, 30 insertions(+), 3 deletions(-)
+
+diff --git a/repos/base/include/base/session_label.h b/repos/base/include/base/session_label.h
+index d5e752d120..85034904e5 100644
+--- a/repos/base/include/base/session_label.h
++++ b/repos/base/include/base/session_label.h
+@@ -16,10 +16,14 @@
+ #define _INCLUDE__BASE__SESSION_LABEL_H_
+ 
+ #include <base/snprintf.h>
++#include <base/log.h>
+ #include <util/arg_string.h>
+ #include <util/string.h>
+ 
+-namespace Genode { struct Session_label; }
++namespace Genode {
++	struct Session_label;
++	class Label_overflow : Exception { };
++}
+ 
+ struct Genode::Session_label : String<160>
+ {
+@@ -33,6 +37,8 @@ struct Genode::Session_label : String<160>
+ 		using String = String<capacity()>;
+ 		using String::String;
+ 
++		/* TODO: String::String can still truncate and break labels */
++
+ 		/**
+ 		 * Copy constructor
+ 		 *
+@@ -41,7 +47,13 @@ struct Genode::Session_label : String<160>
+ 		 */
+ 		template <size_t N>
+ 		Session_label(Genode::String<N> const &other)
+-		: Genode::String<160>(other) { }
++		: Genode::String<160>(other)
++		{
++			if (length() < other.length()) {
++				error(__func__, " overflow - «", other, "»");
++				throw Label_overflow();
++			}
++		}
+ 
+ 		Session_label last_element() const
+ 		{
+@@ -90,8 +102,13 @@ namespace Genode {
+ 	inline Session_label label_from_args(char const *args)
+ 	{
+ 		char buf[Session_label::capacity()];
+-		Arg_string::find_arg(args, "label").string(buf, sizeof(buf), "");
++		auto arg = Arg_string::find_arg(args, "label");
++		if (Session_label::capacity() <= arg.length()) {
++			error(__func__, " overflow - «", (char const *)args, "»");
++			throw Label_overflow();
++		}
+ 
++		arg.string(buf, sizeof(buf), "");
+ 		return Session_label(Cstring(buf));
+ 	}
+ 
+@@ -103,6 +120,10 @@ namespace Genode {
+ 	                                    String<N2> const &label)
+ 	{
+ 		String<N1 + N2 + 4> const prefixed_label(prefix, " -> ", label);
++		if (Session_label::capacity() <= prefixed_label.length()) {
++			error(__func__, " overflow - «", prefix, "» - «", label, "»");
++			throw Label_overflow();
++		}
+ 		return Session_label(prefixed_label);
+ 	}
+ }
+diff --git a/repos/base/include/util/arg_string.h b/repos/base/include/util/arg_string.h
+index 610fbb16b3..48777e0c2a 100644
+--- a/repos/base/include/util/arg_string.h
++++ b/repos/base/include/util/arg_string.h
+@@ -114,6 +114,12 @@ class Genode::Arg
+ 
+ 		inline bool valid() const { return _key; }
+ 
++		size_t length() const
++		{
++			return _value.type() == Token::STRING
++				? _value.len() - 2 : _value.len();
++		}
++
+ 		unsigned long ulong_value(unsigned long default_value) const
+ 		{
+ 			unsigned long value = 0;
+-- 
+2.31.0
+
+
+From e0210fb4f5c3462be76f0e335b6ba5488d046956 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Sat, 7 Nov 2020 13:49:41 +0100
+Subject: [PATCH 08/24] init: log error when configuration cannot be parsed
+
+---
+ repos/os/src/init/main.cc | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/repos/os/src/init/main.cc b/repos/os/src/init/main.cc
+index 7b69c95721..f1c1a1435a 100644
+--- a/repos/os/src/init/main.cc
++++ b/repos/os/src/init/main.cc
+@@ -47,6 +47,10 @@ struct Init::Main : Sandbox::State_handler
+ 		_config.update();
+ 
+ 		Xml_node const config = _config.xml();
++		if (config.has_type("empty")) {
++			error("failed to parse config ROM");
++			return;
++		};
+ 
+ 		bool reporter_enabled = false;
+ 		config.with_sub_node("report", [&] (Xml_node report) {
+-- 
+2.31.0
+
+
+From 6392bae79ef78a2229ecfc2bb4599e6d34640b9a Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Sat, 28 Nov 2020 14:00:49 +0100
+Subject: [PATCH 09/24] Do not default Child::binary_name() to Child::name()
+
+---
+ repos/base/include/base/child.h  | 2 +-
+ repos/base/src/core/main.cc      | 2 ++
+ repos/os/src/lib/sandbox/child.h | 1 +
+ 3 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/repos/base/include/base/child.h b/repos/base/include/base/child.h
+index 2babff2a5a..4350283e64 100644
+--- a/repos/base/include/base/child.h
++++ b/repos/base/include/base/child.h
+@@ -58,7 +58,7 @@ struct Genode::Child_policy
+ 	/**
+ 	 * ROM module name of the binary to start
+ 	 */
+-	virtual Binary_name binary_name() const { return name(); }
++	virtual Binary_name binary_name() const = 0;
+ 
+ 	/**
+ 	 * ROM module name of the dynamic linker
+diff --git a/repos/base/src/core/main.cc b/repos/base/src/core/main.cc
+index 234bc455f6..cad2e6c081 100644
+--- a/repos/base/src/core/main.cc
++++ b/repos/base/src/core/main.cc
+@@ -145,6 +145,8 @@ class Core_child : public Child_policy
+ 
+ 		Name name() const override { return "init"; }
+ 
++		Binary_name binary_name() const override { return "init"; }
++
+ 		Route resolve_session_request(Service::Name const &name,
+ 		                              Session_label const &label,
+ 		                              Session::Diag const  diag) override
+diff --git a/repos/os/src/lib/sandbox/child.h b/repos/os/src/lib/sandbox/child.h
+index c9eeb830b5..7e7101ce3b 100644
+--- a/repos/os/src/lib/sandbox/child.h
++++ b/repos/os/src/lib/sandbox/child.h
+@@ -595,6 +595,7 @@ class Sandbox::Child : Child_policy, Routed_service::Wakeup
+ 		 ****************************/
+ 
+ 		Child_policy::Name name() const override { return _unique_name; }
++		Child_policy::Binary_name binary_name() const override { return _binary_name; }
+ 
+ 		Pd_session           &ref_pd()           override { return _env.pd(); }
+ 		Pd_session_capability ref_pd_cap() const override { return _env.pd_session_cap(); }
+-- 
+2.31.0
+
+
+From 42f7cde2e8735fb799c3411ae1d85ea7c99b5e2d Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Thu, 3 Dec 2020 12:19:10 +0100
+Subject: [PATCH 10/24] vfs: create missing root directories for writeable
+ sessions
+
+This is the expected behavior.
+---
+ repos/os/src/server/vfs/main.cc | 47 ++++++++++++++++++++++++++++++---
+ 1 file changed, 43 insertions(+), 4 deletions(-)
+
+diff --git a/repos/os/src/server/vfs/main.cc b/repos/os/src/server/vfs/main.cc
+index b780b1fdd7..358afd28a9 100644
+--- a/repos/os/src/server/vfs/main.cc
++++ b/repos/os/src/server/vfs/main.cc
+@@ -841,6 +841,41 @@ class Vfs_server::Root : public Genode::Root_component<Session_component>,
+ 				Genode::Signal_transmitter(_reactivate_handler).submit();
+ 		}
+ 
++		/**
++		 * Open a directory, ensuring all parent directories exists.
++		 */
++		void _create_session_dir(Path const &path)
++		{
++			using namespace Genode;
++			typedef Vfs::Directory_service::Opendir_result Result;
++
++			Vfs_handle *handle { nullptr };
++			Vfs::File_system &vfs = _vfs_env.root_dir();
++
++			switch (vfs.opendir(path.string(), true, &handle, _vfs_heap)) {
++			case Result::OPENDIR_OK:
++				handle->close();
++				return;
++			case Result::OPENDIR_ERR_NODE_ALREADY_EXISTS:
++				if (vfs.directory(path.string())) return;
++				break;
++			case Result::OPENDIR_ERR_LOOKUP_FAILED: {
++				Path parent = path;
++				parent.strip_last_element();
++				_create_session_dir(parent.string());
++				auto res = vfs.opendir(path.string(), true, &handle, _vfs_heap);
++				if (res == Result::OPENDIR_OK) {
++					handle->close();
++					return;
++				}
++			}
++			default: break;
++			}
++
++			error("cannot create session root at ", path);
++			throw Service_denied();
++		}
++
+ 	protected:
+ 
+ 		Session_component *_create_session(const char *args) override
+@@ -916,10 +951,14 @@ class Vfs_server::Root : public Genode::Root_component<Session_component>,
+ 			}
+ 
+ 			/* check if the session root exists */
+-			if (!((session_root == "/")
+-			 || _vfs_env.root_dir().directory(session_root.base()))) {
+-				error("session root '", session_root, "' not found for '", label, "'");
+-				throw Service_denied();
++			if (session_root != "/") {
++				if (!_vfs_env.root_dir().directory(session_root.base())) {
++					if (writeable) { _create_session_dir(session_root); }
++					else {
++						error("session root '", session_root, "' not found for '", label, "'");
++						throw Service_denied();
++					}
++				}
+ 			}
+ 
+ 			Session_component *session = new (md_alloc())
+-- 
+2.31.0
+
+
+From a3c0eec54398f49130dfc76d69ee0841472b9691 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 3 Feb 2021 15:20:39 +0100
+Subject: [PATCH 11/24] vfs: support for loading plugins by label
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Make the VFS plugin recognize <plugin label="…"/> nodes.
+---
+ repos/os/src/lib/vfs/file_system_factory.cc | 33 ++++++++++++++++-----
+ 1 file changed, 26 insertions(+), 7 deletions(-)
+
+diff --git a/repos/os/src/lib/vfs/file_system_factory.cc b/repos/os/src/lib/vfs/file_system_factory.cc
+index 5cdf20e8e3..1cf5d587ea 100644
+--- a/repos/os/src/lib/vfs/file_system_factory.cc
++++ b/repos/os/src/lib/vfs/file_system_factory.cc
+@@ -56,8 +56,16 @@ struct Vfs::Global_file_system_factory::Entry_base : Vfs::File_system_factory,
+ 
+ 	Entry_base(Fs_type_name const &name) : name(name) { }
+ 
+-	bool matches(Genode::Xml_node node) const {
+-		return node.has_type(name.string()); }
++	bool matches(Genode::Xml_node node) const
++	{
++		if (node.has_type(name.string()))
++			return true;
++
++		if (node.has_type("plugin") && node.has_attribute("load"))
++			return node.attribute("load").has_value(name.string());
++
++		return false;
++	}
+ };
+ 
+ 
+@@ -165,14 +173,25 @@ Vfs::File_system_factory &Vfs::Global_file_system_factory::_load_factory(Vfs::En
+ bool Vfs::Global_file_system_factory::_probe_external_factory(Vfs::Env &env,
+                                                               Genode::Xml_node node)
+ {
+-	Library_name const lib_name = _library_name(node.type());
+-
+ 	try {
+-		_list.insert(new (env.alloc())
+-			External_entry(node.type().string(), _load_factory(env, lib_name)));
+-		return true;
++		if (node.has_type("plugin")) {
++			Library_name const lib_name = node.attribute_value("load", Library_name(""));
++
++			if (lib_name == "") {
++				error("missing \"load\" attribute at ", node);
++				return false;
++			}
+ 
++			_list.insert(new (env.alloc())
++				External_entry(lib_name.string(), _load_factory(env, lib_name)));
++		} else {
++			Library_name const lib_name = _library_name(node.type());
++
++			_list.insert(new (env.alloc())
++				External_entry(node.type().string(), _load_factory(env, lib_name)));
++		}
+ 	} catch (Factory_not_available) { return false; }
++	return true;
+ }
+ 
+ 
+-- 
+2.31.0
+
+
+From 4d3829383fd6af3839a10434dfdf70e364a5343c Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 3 Feb 2021 17:33:24 +0100
+Subject: [PATCH 12/24] vfs: increase the capacity of tar ROM labels to 128
+
+---
+ repos/os/src/lib/vfs/tar_file_system.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/repos/os/src/lib/vfs/tar_file_system.h b/repos/os/src/lib/vfs/tar_file_system.h
+index d9941deb5f..fcb06a1459 100644
+--- a/repos/os/src/lib/vfs/tar_file_system.h
++++ b/repos/os/src/lib/vfs/tar_file_system.h
+@@ -27,7 +27,7 @@ class Vfs::Tar_file_system : public File_system
+ 	Genode::Env       &_env;
+ 	Genode::Allocator &_alloc;
+ 
+-	typedef Genode::String<64> Rom_name;
++	typedef Genode::String<128> Rom_name;
+ 	Rom_name _rom_name;
+ 
+ 	Genode::Attached_rom_dataspace _tar_ds { _env, _rom_name.string() };
+-- 
+2.31.0
+
+
+From 69c16e1321776cb799828f8f11b52473c8c3d12f Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 10 Feb 2021 13:32:42 +0100
+Subject: [PATCH 13/24] Detect destroyed argument buffers at Env::session
+
+Session request arguments are silently zeroed when their length
+exceedes some buffer size.
+---
+ repos/base/src/lib/base/component.cc | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/repos/base/src/lib/base/component.cc b/repos/base/src/lib/base/component.cc
+index 8973e3b6b5..9441bb923c 100644
+--- a/repos/base/src/lib/base/component.cc
++++ b/repos/base/src/lib/base/component.cc
+@@ -127,6 +127,10 @@ namespace {
+ 			}
+ 
+ 			Mutex::Guard guard(_mutex);
++			if (!args.valid_string()) {
++				error("invalid args for ", name.string(), " service request");
++				throw Service_denied();
++			}
+ 
+ 			/*
+ 			 * Since we account for the backing store for session meta data on
+-- 
+2.31.0
+
+
+From 0ced46bc913d04910ae73f5cf18c40c2cf9ec7b0 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Thu, 11 Feb 2021 14:10:50 +0100
+Subject: [PATCH 14/24] Increase session arguments buffer size to 240 bytes
+
+---
+ repos/base/include/parent/parent.h | 2 +-
+ repos/base/include/root/root.h     | 2 +-
+ repos/base/lib/symbols/ld          | 2 ++
+ 3 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/repos/base/include/parent/parent.h b/repos/base/include/parent/parent.h
+index 7379342e5b..6e94047788 100644
+--- a/repos/base/include/parent/parent.h
++++ b/repos/base/include/parent/parent.h
+@@ -54,7 +54,7 @@ class Genode::Parent
+ 	public:
+ 
+ 		typedef Rpc_in_buffer<64>  Service_name;
+-		typedef Rpc_in_buffer<160> Session_args;
++		typedef Rpc_in_buffer<240> Session_args;
+ 		typedef Rpc_in_buffer<160> Upgrade_args;
+ 
+ 		struct Client : Interface { typedef Id_space<Client>::Id Id; };
+diff --git a/repos/base/include/root/root.h b/repos/base/include/root/root.h
+index c7e3a0c908..4fda9e341f 100644
+--- a/repos/base/include/root/root.h
++++ b/repos/base/include/root/root.h
+@@ -29,7 +29,7 @@ namespace Genode {
+ 
+ struct Genode::Root
+ {
+-	typedef Rpc_in_buffer<160> Session_args;
++	typedef Rpc_in_buffer<240> Session_args;
+ 	typedef Rpc_in_buffer<160> Upgrade_args;
+ 
+ 	virtual ~Root() { }
+diff --git a/repos/base/lib/symbols/ld b/repos/base/lib/symbols/ld
+index 2374417f9b..70e15acd99 100644
+--- a/repos/base/lib/symbols/ld
++++ b/repos/base/lib/symbols/ld
+@@ -399,6 +399,8 @@ _ZThn236_N5Timer10Connection11set_timeoutEN6Genode12MicrosecondsERNS1_15Timeout_
+ _ZThn236_N5Timer10Connection9curr_timeEv T
+ _ZThn288_N5Timer10Connection11set_timeoutEN6Genode12MicrosecondsERNS1_15Timeout_handlerE T
+ _ZThn288_N5Timer10Connection9curr_timeEv T
++_ZThn368_N5Timer10Connection11set_timeoutEN6Genode12MicrosecondsERNS1_15Timeout_handlerE T
++_ZThn368_N5Timer10Connection9curr_timeEv T
+ _ZThn8_N6Genode17Timeout_scheduler14handle_timeoutENS_8DurationE T
+ _ZThn8_N6Genode17Timeout_schedulerD0Ev T
+ _ZThn8_N6Genode17Timeout_schedulerD1Ev T
+-- 
+2.31.0
+
+
+From 5438e5588c588ce85cc21b764d99e68212552933 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Fri, 19 Feb 2021 16:09:23 +0100
+Subject: [PATCH 15/24] ldso: increase size of library names
+
+---
+ repos/base/src/lib/ldso/include/config.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/repos/base/src/lib/ldso/include/config.h b/repos/base/src/lib/ldso/include/config.h
+index 5708df0930..db9014a95b 100644
+--- a/repos/base/src/lib/ldso/include/config.h
++++ b/repos/base/src/lib/ldso/include/config.h
+@@ -58,7 +58,7 @@ class Linker::Config : Noncopyable
+ 		bool verbose()     const { return _verbose; }
+ 		bool check_ctors() const { return _check_ctors; }
+ 
+-		typedef String<100> Rom_name;
++		typedef String<128> Rom_name;
+ 
+ 		/**
+ 		 * Call fn for each library specified in the configuration
+-- 
+2.31.0
+
+
+From 7e7ded6a57bffa425fff002ecfb6e9c38c5dc055 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 14 Apr 2021 10:43:21 +0200
+Subject: [PATCH 16/24] sandbox: round up priority levels to a power of two
+
+The requirement that priority levels be a power of two is an
+implementation artifact, honor the value set in configuration
+rather refuse lesser values.
+---
+ repos/os/src/lib/sandbox/utils.h | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/repos/os/src/lib/sandbox/utils.h b/repos/os/src/lib/sandbox/utils.h
+index 639a4be4dd..5c09c5e596 100644
+--- a/repos/os/src/lib/sandbox/utils.h
++++ b/repos/os/src/lib/sandbox/utils.h
+@@ -188,13 +188,19 @@ namespace Sandbox {
+ 	 */
+ 	inline Prio_levels prio_levels_from_xml(Xml_node config)
+ 	{
+-		long const prio_levels = config.attribute_value("prio_levels", 0UL);
++		long prio_levels = config.attribute_value("prio_levels", 0UL);
+ 
+-		if (prio_levels && ((prio_levels >= (long)sizeof(prio_levels)*8) ||
+-		                    (prio_levels != (1L << log2(prio_levels))))) {
+-			warning("prio levels is not power of two, priorities are disabled");
++		if (prio_levels && (prio_levels >= (long)sizeof(prio_levels)*8)) {
++			warning("invalid prio_levels ", prio_levels, " priorities are disabled");
+ 			return Prio_levels { 0 };
+ 		}
++
++		long const prio_log2 = log2(prio_levels);
++		if (prio_levels != (1L << prio_log2)) {
++			prio_levels = 1L << (prio_log2+1);
++			log("priority levels increased to ", prio_levels);
++		}
++
+ 		return Prio_levels { prio_levels };
+ 	}
+ 
+-- 
+2.31.0
+
+
+From 958aeba4402b275b78e0e6f218e7bcaa08c5fea8 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 6 May 2020 04:38:35 +0530
+Subject: [PATCH 17/24] libc: add siginterrupt dummy
+
+---
+ repos/libports/src/lib/libc/signal.cc | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/repos/libports/src/lib/libc/signal.cc b/repos/libports/src/lib/libc/signal.cc
+index a08854a8c0..2d2def34d3 100644
+--- a/repos/libports/src/lib/libc/signal.cc
++++ b/repos/libports/src/lib/libc/signal.cc
+@@ -131,6 +131,9 @@ extern "C" int sigaction(int signum, const struct sigaction *act, struct sigacti
+ }
+ 
+ 
++extern "C" int siginterrupt(int sig, int flag) { return 0; };
++
++
+ extern "C" int       _sigaction(int, const struct sigaction *, struct sigaction *) __attribute__((weak, alias("sigaction")));
+ extern "C" int  __sys_sigaction(int, const struct sigaction *, struct sigaction *) __attribute__((weak, alias("sigaction")));
+ extern "C" int __libc_sigaction(int, const struct sigaction *, struct sigaction *) __attribute__((weak, alias("sigaction")));
+-- 
+2.31.0
+
+
+From 4a0b3161633f0369386bb0fdca10603c593670ad Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 6 May 2020 04:59:56 +0530
+Subject: [PATCH 18/24] libc: add upstream mbsinit
+
+---
+ repos/libports/lib/mk/libc-locale.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/repos/libports/lib/mk/libc-locale.mk b/repos/libports/lib/mk/libc-locale.mk
+index 8e75e59589..2bb98b1456 100644
+--- a/repos/libports/lib/mk/libc-locale.mk
++++ b/repos/libports/lib/mk/libc-locale.mk
+@@ -6,7 +6,7 @@ CC_OPT += -D_Thread_local=""
+ FILTER_OUT = \
+ 	c16rtomb.c c32rtomb_iconv.c mbrtoc16_iconv.c mbrtoc32_iconv.c \
+ 	setlocale.c xlocale.c setrunelocale.c \
+-	ascii.c big5.c euc.co gb18030.c gb2312.c gbk.c mbsinit.c mskanji.c utf8.c \
++	ascii.c big5.c euc.co gb18030.c gb2312.c gbk.c mskanji.c utf8.c \
+ 
+ SRC_C = $(filter-out $(FILTER_OUT),$(notdir $(wildcard $(LIBC_LOCALE_DIR)/*.c)))
+ 
+-- 
+2.31.0
+
+
+From 4d2e4e6fefe31ab7100fb56019b5b261288dc079 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 27 May 2020 16:35:16 +0530
+Subject: [PATCH 19/24] libc: add mlock and munlock dummies
+
+---
+ repos/libports/src/lib/libc/dummies.cc | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/repos/libports/src/lib/libc/dummies.cc b/repos/libports/src/lib/libc/dummies.cc
+index b01d95f717..f676b4979c 100644
+--- a/repos/libports/src/lib/libc/dummies.cc
++++ b/repos/libports/src/lib/libc/dummies.cc
+@@ -218,5 +218,15 @@ int __attribute__((weak)) madvise(void *addr, size_t length, int advice)
+ 
+ const struct res_sym __p_type_syms[] = { };
+ 
++#define DUMMY_EPERM(ret_type, ret_val, name, args) __attribute__((weak)) \
++ret_type name args \
++{ \
++	errno = EPERM; \
++	return ret_val; \
++}
++
++DUMMY_EPERM(int, -1,   mlock, (const void *, size_t));
++DUMMY_EPERM(int, -1, munlock, (const void *, size_t));
++
+ } /* extern "C" */
+ 
+-- 
+2.31.0
+
+
+From efdf6d0b7e7dedf7295c524dae06c8354d8f49d2 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Fri, 29 May 2020 09:26:50 +0530
+Subject: [PATCH 20/24] libc: return 0 from getpgrp and getppid dummies
+
+---
+ repos/libports/src/lib/libc/dummies.cc | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/repos/libports/src/lib/libc/dummies.cc b/repos/libports/src/lib/libc/dummies.cc
+index f676b4979c..9c568dcc77 100644
+--- a/repos/libports/src/lib/libc/dummies.cc
++++ b/repos/libports/src/lib/libc/dummies.cc
+@@ -109,8 +109,8 @@ DUMMY(char *,  0, _getlogin, (void))
+ DUMMY(int   , -1, getnameinfo, (const sockaddr *, socklen_t, char *, size_t, char *, size_t, int))
+ DUMMY(struct servent *, 0, getservbyname, (const char *, const char *))
+ DUMMY(int   , -1, getsid, (pid_t))
+-DUMMY_SILENT(pid_t , -1, getppid, (void))
+-DUMMY(pid_t , -1, getpgrp, (void))
++DUMMY_SILENT(pid_t , 0, getpgrp, (void))
++DUMMY_SILENT(pid_t , 0, getppid, (void))
+ DUMMY(int   , -1, getpriority, (int, int))
+ DUMMY(int   , -1, getrusage, (int, rusage *))
+ DUMMY_SILENT(uid_t ,  0, getuid, (void))
+-- 
+2.31.0
+
+
+From 023f65d529f8218e7069d11c795a96362703819d Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Thu, 26 Nov 2020 12:47:30 +0100
+Subject: [PATCH 21/24] libc: always set argv and envp to valid arrays
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The arrays passed to main(…) must always be valid null-terminated arrays.
+
+Fix #3955
+---
+ repos/libports/include/libc/args.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/repos/libports/include/libc/args.h b/repos/libports/include/libc/args.h
+index d76ea51155..ca9a8fd38a 100644
+--- a/repos/libports/include/libc/args.h
++++ b/repos/libports/include/libc/args.h
+@@ -25,6 +25,7 @@ static void populate_args_and_env(Libc::Env &env, int &argc, char **&argv, char
+ {
+ 	using Genode::Xml_node;
+ 	using Genode::Xml_attribute;
++	using Genode::max;
+ 
+ 	env.config([&] (Xml_node const &node) {
+ 
+-- 
+2.31.0
+
+
+From cbfdd0967c467a15a5999516ae927f0873a839ec Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 2 Dec 2020 16:31:59 +0100
+Subject: [PATCH 22/24] libc: implement if_nametoindex
+
+---
+ .../libports/src/lib/libc/socket_fs_plugin.cc | 50 ++++++++++++++++++-
+ 1 file changed, 49 insertions(+), 1 deletion(-)
+
+diff --git a/repos/libports/src/lib/libc/socket_fs_plugin.cc b/repos/libports/src/lib/libc/socket_fs_plugin.cc
+index d5db46ff83..fabaf68b5c 100644
+--- a/repos/libports/src/lib/libc/socket_fs_plugin.cc
++++ b/repos/libports/src/lib/libc/socket_fs_plugin.cc
+@@ -33,6 +33,8 @@
+ #include <stdio.h>
+ #include <sys/ioctl.h>
+ #include <ifaddrs.h>
++#include <sys/types.h>
++#include <sys/socket.h>
+ #include <net/if.h>
+ 
+ /* libc-internal includes */
+@@ -1128,7 +1130,53 @@ extern "C" int getifaddrs(struct ifaddrs **ifap)
+ }
+ 
+ 
+-extern "C" void freeifaddrs(struct ifaddrs *) { }
++extern "C" void freeifaddrs(struct ifaddrs *)
++{
++}
++
++
++static char const * static_if_name = "eth0";
++
++
++extern "C" unsigned int
++if_nametoindex(const char *ifname)
++{
++	return ::strcmp(ifname, static_if_name) ? 0 : 1;
++}
++
++
++extern "C" char *
++if_indextoname(unsigned int ifindex, char *ifname)
++{
++	if (ifindex == 1) {
++		strncpy(ifname, static_if_name, IFNAMSIZ);
++		return ifname;
++	}
++	return NULL;
++}
++
++
++extern "C" struct if_nameindex *
++if_nameindex(void)
++{
++	static struct if_nameindex if_ni_array[2] = {
++		{
++			.if_index = 1,
++			.if_name = (char *)static_if_name
++		},
++		{
++			.if_index = 0,
++			.if_name = NULL
++		}
++	};
++
++	return if_ni_array;
++}
++
++
++extern "C" void if_freenameindex(struct if_nameindex *ptr)
++{
++}
+ 
+ 
+ /****************************
+-- 
+2.31.0
+
+
+From 0be93ad6ce740791d769878746587cbac2ffb6bb Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Thu, 4 Jun 2020 01:03:37 +0530
+Subject: [PATCH 23/24] libc: add readpassphrase
+
+This symbol is already in the stub library.
+---
+ repos/libports/lib/mk/libc-gen.inc | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/repos/libports/lib/mk/libc-gen.inc b/repos/libports/lib/mk/libc-gen.inc
+index ab0ce929aa..1c7f84e800 100644
+--- a/repos/libports/lib/mk/libc-gen.inc
++++ b/repos/libports/lib/mk/libc-gen.inc
+@@ -40,7 +40,6 @@ FILTER_OUT_C += \
+ 	getentropy.c \
+ 	getutxent.c \
+ 	pututxline.c \
+-	readpassphrase.c \
+ 	scandir_b.c \
+ 	sem_new.c \
+ 	signal.c \
+-- 
+2.31.0
+
+
+From 7ca495db9f9e72ff8b42420814e141a249d5eb95 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 2 Dec 2020 22:27:00 +0100
+Subject: [PATCH 24/24] libc: do not set different errno values for O_NOFOLLOW
+
+Do not replace ENOENT and EEXIST with ELOOP when open is called with
+O_NOFOLLOW. This breaks Tor.
+---
+ repos/libports/src/lib/libc/vfs_plugin.cc | 16 ----------------
+ 1 file changed, 16 deletions(-)
+
+diff --git a/repos/libports/src/lib/libc/vfs_plugin.cc b/repos/libports/src/lib/libc/vfs_plugin.cc
+index 7fece6d88d..27a9eb1808 100644
+--- a/repos/libports/src/lib/libc/vfs_plugin.cc
++++ b/repos/libports/src/lib/libc/vfs_plugin.cc
+@@ -319,10 +319,6 @@ Libc::File_descriptor *Libc::Vfs_plugin::open_from_kernel(const char *path, int
+ 		case Result::OPEN_ERR_UNACCESSIBLE:
+ 			{
+ 				if (!(flags & O_CREAT)) {
+-					if (flags & O_NOFOLLOW) {
+-					        errno = ELOOP;
+-					        return 0;
+-					}
+ 					errno = ENOENT;
+ 					return 0;
+ 				}
+@@ -336,10 +332,6 @@ Libc::File_descriptor *Libc::Vfs_plugin::open_from_kernel(const char *path, int
+ 				case Result::OPEN_ERR_EXISTS:
+ 
+ 					/* file has been created by someone else in the meantime */
+-					if (flags & O_NOFOLLOW) {
+-					        errno = ELOOP;
+-					        return 0;
+-					}
+ 					errno = EEXIST;
+ 					return 0;
+ 
+@@ -451,10 +443,6 @@ Libc::File_descriptor *Libc::Vfs_plugin::open(char const *path, int flags)
+ 				case Result::OPEN_ERR_UNACCESSIBLE:
+ 					{
+ 						if (!(flags & O_CREAT)) {
+-							if (flags & O_NOFOLLOW) {
+-							        result_errno = ELOOP;
+-							        return Fn::COMPLETE;
+-							}
+ 							result_errno = ENOENT;
+ 							return Fn::COMPLETE;
+ 						}
+@@ -468,10 +456,6 @@ Libc::File_descriptor *Libc::Vfs_plugin::open(char const *path, int flags)
+ 						case Result::OPEN_ERR_EXISTS:
+ 
+ 							/* file has been created by someone else in the meantime */
+-							if (flags & O_NOFOLLOW) {
+-								result_errno = ELOOP;
+-								return Fn::COMPLETE;
+-							}
+ 							result_errno = EEXIST;
+ 							return Fn::COMPLETE;
+ 
+-- 
+2.31.0
+

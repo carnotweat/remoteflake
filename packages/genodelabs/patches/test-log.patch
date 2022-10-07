@@ -1,0 +1,16 @@
+commit aba419c7ff040d75151b35563fa43b60b17e1faa
+Author: Emery Hemingway <ehmry@posteo.net>
+Date:   Tue May 19 11:31:17 2020 +0530
+
+    test-log: exit
+
+diff --git a/repos/base/src/test/log/main.cc b/repos/base/src/test/log/main.cc
+index a07a36a781..1c2e205d0c 100644
+--- a/repos/base/src/test/log/main.cc
++++ b/repos/base/src/test/log/main.cc
+@@ -58,4 +58,5 @@ void Component::construct(Genode::Env &env)
+ 	log(Cstring(buf));
+ 
+ 	log("Test done.");
++	env.parent().exit(0);
+ }

@@ -1,0 +1,12 @@
+diff --git a/repos/os/src/test/signal/main.cc b/repos/os/src/test/signal/main.cc
+index 4e16765ada..88769a2399 100644
+--- a/repos/os/src/test/signal/main.cc
++++ b/repos/os/src/test/signal/main.cc
+@@ -693,6 +693,7 @@ struct Main
+ 	{
+ 		test_8.destruct();
+ 		log("--- Signalling test finished ---");
++		env.parent().exit(0);
+ 	}
+ 
+ 	Main(Env &env) : env(env)

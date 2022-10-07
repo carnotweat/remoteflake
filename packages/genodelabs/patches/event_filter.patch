@@ -1,0 +1,24 @@
+commit ae03115e473fd7a16e172ccaa91d1ddc2cdc7d29
+Author: Emery Hemingway <ehmry@posteo.net>
+Date:   Wed Apr 29 03:34:15 2020 +0530
+
+    input_filter: survive unrecognized keys
+
+diff --git a/repos/os/src/server/input_filter/chargen_source.h b/repos/os/src/server/input_filter/chargen_source.h
+index 06fc657c25..3525fd6f34 100644
+--- a/repos/os/src/server/event_filter/chargen_source.h
++++ b/repos/os/src/server/event_filter/chargen_source.h
+@@ -684,9 +684,10 @@ class Input_filter::Chargen_source : public Source, Source::Sink
+ 			node.for_each_sub_node("key", [&] (Xml_node key_node) {
+
+ 				Key_name const name = key_node.attribute_value("name", Key_name());
+-				Input::Keycode const key = key_code_by_name(name);
+-
+-				new (_alloc) Modifier(_modifiers, id, key);
++				try {
++					Input::Keycode const key = key_code_by_name(name);
++					new (_alloc) Modifier(_modifiers, id, key);
++				} catch (Unknown_key) { warning("unrecognized key name ", name); }
+ 			});
+
+ 			node.for_each_sub_node("rom", [&] (Xml_node rom_node) {

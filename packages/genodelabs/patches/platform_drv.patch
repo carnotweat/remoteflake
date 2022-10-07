@@ -1,0 +1,136 @@
+From c6104cfcfb7c810fabb0fb26ec8162466ef9541b Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Tue, 10 Nov 2020 12:51:12 +0100
+Subject: [PATCH 1/2] drivers/platform/x86: move PCI capabilities to PCI report
+ sub-nodes
+
+---
+ .../os/src/drivers/platform/spec/x86/pci_session_component.h  | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/repos/os/src/drivers/platform/spec/x86/pci_session_component.h b/repos/os/src/drivers/platform/spec/x86/pci_session_component.h
+index ecca81032b..395ec71f16 100644
+--- a/repos/os/src/drivers/platform/spec/x86/pci_session_component.h
++++ b/repos/os/src/drivers/platform/spec/x86/pci_session_component.h
+@@ -1169,7 +1169,9 @@ class Platform::Root : public Genode::Root_component<Session_component>
+ 
+ 								for (Genode::uint16_t val = 0; cap; cap = val >> 8) {
+ 									val = config.read(config_access, cap, Platform::Device::ACCESS_16BIT);
+-									xml.attribute("cap", String<8>(Hex(val & 0xff)));
++									xml.node("cap", [&] () {
++										xml.attribute("type", String<8>(Hex(val & 0xff)));
++									});
+ 								}
+ 							} catch (...) {
+ 								xml.attribute("cap", "failed to read");
+-- 
+2.31.0
+
+
+From 1713de41fd6a3eecfc917f1f709b6bb7a043624b Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Tue, 10 Nov 2020 14:46:59 +0100
+Subject: [PATCH 2/2] drivers/platform/x86: assign device by optional index
+
+Optionally assign PCI devices to sessions using indexes into the list of
+devices matching that PCI class. This is configured by an "index"
+attribute on <policy><pci/><policy> nodes. An index is not valid if the
+"pci" node does not also contain a "class" attribute.
+
+Fix #3946
+---
+ repos/os/src/drivers/platform/spec/x86/README | 13 ++++++----
+ .../platform/spec/x86/pci_session_component.h | 24 ++++++++++++++-----
+ 2 files changed, 26 insertions(+), 11 deletions(-)
+
+diff --git a/repos/os/src/drivers/platform/spec/x86/README b/repos/os/src/drivers/platform/spec/x86/README
+index 83649f3b33..1c605e93fd 100644
+--- a/repos/os/src/drivers/platform/spec/x86/README
++++ b/repos/os/src/drivers/platform/spec/x86/README
+@@ -59,11 +59,14 @@ Non PCI devices, as the PS2 controller are named by a "device" node in the polic
+ 
+ 
+ The first entry ('pci' or 'dev') of the policy node that matches will grant
+-access of a device or device class to the client. Subsequent entries will not
+-be checked. If a 'bus', 'device', 'function' triple was specified in one of the
+-policies and in another policy a fuzzy pci class alias which would include
+-the device specified by the triple, the device will not appear during device
+-discovery by the client with the fuzzy pci class policy.
++access of a device or device class to the client. If a 'pci' policy specifies
++'class' and 'index' attributes then the device will be selected by an index
++into the list of devices matching that class.
++
++If a 'bus', 'device', 'function' triple was specified in one of the policies
++and in another policy a fuzzy pci class alias which would include the device
++specified by the triple, the device will not appear during device discovery
++by the client with the fuzzy pci class policy.
+ 
+ 
+ By default the driver will try to use MSIs if the device and the used kernel
+diff --git a/repos/os/src/drivers/platform/spec/x86/pci_session_component.h b/repos/os/src/drivers/platform/spec/x86/pci_session_component.h
+index 395ec71f16..670179d79c 100644
+--- a/repos/os/src/drivers/platform/spec/x86/pci_session_component.h
++++ b/repos/os/src/drivers/platform/spec/x86/pci_session_component.h
+@@ -370,7 +370,7 @@ class Platform::Session_component : public Genode::Rpc_object<Session>
+ 		/**
+ 		 * Check according session policy device usage
+ 		 */
+-		bool permit_device(Pci::Bdf const bdf, unsigned const class_code)
++		bool permit_device(Bdf const bdf, unsigned class_code, unsigned &class_index)
+ 		{
+ 			using namespace Genode;
+ 
+@@ -397,6 +397,16 @@ class Platform::Session_component : public Genode::Rpc_object<Session>
+ 					if (class_sub_prog && (class_sub_prog ^ class_code) >> DONT_CHECK_PROGIF)
+ 						return;
+ 
++					/*
++					 *if policy specifies an index into devices
++					 * of this class and it doesn't match - deny
++					 */
++					unsigned long policy_index = node.attribute_value("index", ~0UL);
++					if (policy_index != ~0UL) {
++						if (class_index++ != policy_index)
++							return;
++					}
++
+ 					/* if this bdf is used by some policy - deny */
+ 					if (find_dev_in_policy(bdf))
+ 						return;
+@@ -544,9 +554,9 @@ class Platform::Session_component : public Genode::Rpc_object<Session>
+ 						throw Genode::Service_denied();
+ 					}
+ 
+-					/* sanity check that 'class' is the only attribute */
++					/* sanity check that 'class' and 'index' are the only attributes */
+ 					try {
+-						node.attribute(1);
++						node.attribute(node.has_attribute("index") ? 2 : 1);
+ 						Genode::error("'", _label, "' - attributes beside 'class' detected");
+ 						throw Genode::Service_denied();
+ 					}
+@@ -702,6 +712,7 @@ class Platform::Session_component : public Genode::Rpc_object<Session>
+ 				 */
+ 				Device_config config;
+ 
++				unsigned class_index = 0;
+ 				while (true) {
+ 					function += 1;
+ 					if (!_pci_bus.find_next(bus, device, function, &config,
+@@ -719,9 +730,10 @@ class Platform::Session_component : public Genode::Rpc_object<Session>
+ 
+ 					/* check that policy permit access to the matched device */
+ 					if (permit_device(Pci::Bdf { (unsigned)bus,
+-					                             (unsigned)device,
+-					                             (unsigned)function },
+-					                  config.class_code()))
++					                        (unsigned)device,
++					                        (unsigned)function },
++					                  config.class_code(),
++					                  class_index))
+ 						break;
+ 				}
+ 
+-- 
+2.31.0
+

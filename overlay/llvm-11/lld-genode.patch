@@ -1,0 +1,67 @@
+diff --git a/ELF/Driver.cpp b/ELF/Driver.cpp
+index 4637a3b306da..b472f5c2b453 100644
+--- a/ELF/Driver.cpp
++++ b/ELF/Driver.cpp
+@@ -254,12 +254,8 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
+     // file has a DT_SONAME or not because we haven't parsed it yet.
+     // Here, we set the default soname for the file because we might
+     // need it later.
+-    //
+-    // If a file was specified by -lfoo, the directory part is not
+-    // significant, as a user did not specify it. This behavior is
+-    // compatible with GNU.
+     files.push_back(
+-        make<SharedFile>(mbref, withLOption ? path::filename(path) : path));
++        make<SharedFile>(mbref, path));
+     return;
+   case file_magic::bitcode:
+   case file_magic::elf_relocatable:
+diff --git a/ELF/DriverUtils.cpp b/ELF/DriverUtils.cpp
+index e33b07c0c9c9..e8d4e4f4497f 100644
+--- a/ELF/DriverUtils.cpp
++++ b/ELF/DriverUtils.cpp
+@@ -205,14 +205,16 @@ std::string elf::createResponseFile(const opt::InputArgList &args) {
+ // Find a file by concatenating given paths. If a resulting path
+ // starts with "=", the character is replaced with a --sysroot value.
+ static Optional<std::string> findFile(StringRef path1, const Twine &path2) {
+-  SmallString<128> s;
++  SmallString<256> s;
+   if (path1.startswith("="))
+     path::append(s, config->sysroot, path1.substr(1), path2);
+   else
+     path::append(s, path1, path2);
+ 
+-  if (fs::exists(s))
+-    return std::string(s);
++  SmallString<256> RealPath;
++  fs::real_path(s, RealPath);
++  if (fs::exists(RealPath))
++    return RealPath.str().str();
+   return None;
+ }
+ 
+@@ -226,10 +228,22 @@ Optional<std::string> elf::findFromSearchPaths(StringRef path) {
+ // This is for -l<basename>. We'll look for lib<basename>.so or lib<basename>.a from
+ // search paths.
+ Optional<std::string> elf::searchLibraryBaseName(StringRef name) {
++
+   for (StringRef dir : config->searchPaths) {
+     if (!config->isStatic)
+-      if (Optional<std::string> s = findFile(dir, "lib" + name + ".so"))
+-        return s;
++      if (name.size() == 1) {
++        if (Optional<std::string> s = findFile(dir, "lib" + name + ".lib.so"))
++          return s;
++        if (Optional<std::string> s = findFile(dir, "lib" + name + ".so"))
++          return s;
++      } else {
++        if (Optional<std::string> s = findFile(dir, name + ".lib.so"))
++          return s;
++        if (Optional<std::string> s = findFile(dir, "lib" + name + ".so"))
++          return s;
++      }
++    if (Optional<std::string> s = findFile(dir, name + ".lib.a"))
++      return s;
+     if (Optional<std::string> s = findFile(dir, "lib" + name + ".a"))
+       return s;
+   }

@@ -1,0 +1,69 @@
+From da00bd779e6f725eac6a01c0d3af6c1ba9543eda Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Fri, 19 Feb 2021 14:52:25 +0100
+Subject: [PATCH] Expand LOAD segment to cover new .dynstr and .dynsym sections
+
+This is not a robust fix, the first PT_LOAD segment is expanded
+forward to cover .dynstr or .dynsym.
+---
+ src/patchelf.cc | 44 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 44 insertions(+)
+
+diff --git a/src/patchelf.cc b/src/patchelf.cc
+index 50eb13a..1d5ecf3 100644
+--- a/src/patchelf.cc
++++ b/src/patchelf.cc
+@@ -760,6 +760,50 @@ void ElfFile<ElfFileParamNames>::writeReplacedSections(Elf_Off & curOff,
+         curOff += roundUp(i.second.size(), sectionAlignment);
+     }
+ 
++    /* Expand the LOAD segment as neccessary */
++    for (auto & i : replacedSections) {
++        std::string sectionName = i.first;
++
++        /* If this is the .dynstr or .dynsym section, then a PT_LOAD segment
++           must contain it. */
++        if (sectionName == ".dynstr" || sectionName == ".dynsym") {
++            auto const & shdr = findSection(sectionName);
++            bool loaded = false;
++            for (auto & phdr : phdrs) {
++                if (rdi(phdr.p_type) == PT_LOAD) {
++                    if (rdi(phdr.p_offset) <= rdi(shdr.sh_offset) &&
++                        rdi(shdr.sh_size) <= rdi(phdr.p_filesz)) {
++                        debug("'%s' section is loaded\n", sectionName.c_str());
++                        loaded = true;
++                        break;
++                    }
++                }
++            }
++
++            if (!loaded) {
++                debug("'%s' was moved out of a load segment…\n", sectionName.c_str());
++                for (auto & phdr : phdrs) {
++                    if (rdi(phdr.p_type) == PT_LOAD) {
++                        auto sh_offset = rdi(shdr.sh_offset);
++                        auto  p_offset = rdi(phdr.p_offset);
++                        if (sh_offset < p_offset) {
++                            Elf64_Xword gap
++                                = (p_offset - sh_offset)
++                                + ((getPageSize()-1) & sh_offset);
++                            debug("grow PT_LOAD segment by 0x%x to cover '%s'\n",
++                                gap, sectionName.c_str());
++                            wri(phdr.p_filesz, rdi(phdr.p_filesz) + gap);
++                            wri(phdr.p_memsz, rdi(phdr.p_memsz) + gap);
++                            phdr.p_vaddr = phdr.p_paddr = shdr.sh_addr;
++                            phdr.p_offset = shdr.sh_offset;
++                            break;
++                        }
++                    }
++                }
++            }
++        }
++    }
++
+     replacedSections.clear();
+ }
+ 
+-- 
+2.29.2
+

@@ -1,0 +1,56 @@
+From 167aba8e9cc5b7850df59731fc02de08608fc6a6 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Thu, 11 Mar 2021 15:23:34 +0100
+Subject: [PATCH] Set exact size of new load segment in executables
+
+This fixes a bug where the length of new load segments did not
+account for the offset of the segment within the load region.
+---
+ src/patchelf.cc | 24 ++++++++++++------------
+ 1 file changed, 12 insertions(+), 12 deletions(-)
+
+diff --git a/src/patchelf.cc b/src/patchelf.cc
+index 287fea8..0c672e1 100644
+--- a/src/patchelf.cc
++++ b/src/patchelf.cc
+@@ -581,18 +581,6 @@ void ElfFile<ElfFileParamNames>::shiftFile(unsigned int extraPages, Elf_Addr sta
+             wri(phdrs[i].p_align, getPageSize());
+         }
+     }
+-
+-    /* Add a segment that maps the new program/section headers and
+-       PT_INTERP segment into memory.  Otherwise glibc will choke. */
+-    phdrs.resize(rdi(hdr->e_phnum) + 1);
+-    wri(hdr->e_phnum, rdi(hdr->e_phnum) + 1);
+-    Elf_Phdr & phdr = phdrs[rdi(hdr->e_phnum) - 1];
+-    wri(phdr.p_type, PT_LOAD);
+-    wri(phdr.p_offset, 0);
+-    wri(phdr.p_vaddr, wri(phdr.p_paddr, startPage));
+-    wri(phdr.p_filesz, wri(phdr.p_memsz, shift));
+-    wri(phdr.p_flags, PF_R | PF_W);
+-    wri(phdr.p_align, getPageSize());
+ }
+ 
+ 
+@@ -957,6 +945,18 @@ void ElfFile<ElfFileParamNames>::rewriteSectionsExecutable()
+         startOffset += neededPages * getPageSize();
+ 
+         shiftFile(neededPages, firstPage);
++
++        /* Add a segment that maps the new program/section headers and
++           PT_INTERP segment into memory.  Otherwise glibc will choke. */
++        phdrs.resize(rdi(hdr->e_phnum) + 1);
++        wri(hdr->e_phnum, rdi(hdr->e_phnum) + 1);
++        Elf_Phdr & phdr = phdrs[rdi(hdr->e_phnum) - 1];
++        wri(phdr.p_type, PT_LOAD);
++        wri(phdr.p_offset, 0);
++        wri(phdr.p_vaddr, wri(phdr.p_paddr, firstPage));
++        wri(phdr.p_filesz, wri(phdr.p_memsz, neededSpace));
++        wri(phdr.p_flags, PF_R | PF_W); // Can this be read-only?
++        wri(phdr.p_align, getPageSize());
+     }
+ 
+ 
+-- 
+2.29.2
+

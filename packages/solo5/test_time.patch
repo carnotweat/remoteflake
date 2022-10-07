@@ -1,0 +1,19 @@
+commit 1cd31b8a45aee87dcdbde7198e879f959dbe4b5c
+Author: Emery Hemingway <ehmry@posteo.net>
+Date:   Thu Oct 29 13:01:13 2020 +0100
+
+    test_time: increase slack in sleep test
+
+diff --git a/tests/test_time/test_time.c b/tests/test_time/test_time.c
+index 931500b..5fe94ec 100644
+--- a/tests/test_time/test_time.c
++++ b/tests/test_time/test_time.c
+@@ -120,7 +120,7 @@ int solo5_app_main(const struct solo5_start_info *si __attribute__((unused)))
+          * Verify that we did not sleep more than requested, within reason
+          * (scheduling delays, general inaccuracy of the current timing code).
+          */
+-        const solo5_time_t slack = 100000000ULL;
++        const solo5_time_t slack = 150000000ULL;
+         if (delta > (NSEC_PER_SEC + slack)) {
+             printf("[%d] ERROR: slept too much (expected at most %llu ns)\n",
+                     iters, (unsigned long long)slack);

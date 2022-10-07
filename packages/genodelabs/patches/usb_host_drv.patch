@@ -1,0 +1,65 @@
+From b8d73d2b8535b7cafa0508994b383d13340a3f39 Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Thu, 15 Apr 2021 13:08:48 +0200
+Subject: [PATCH] usb_host_drv: remove config reporter
+
+Make usb_host_drv less fragile by removing bizarre undocumented
+features.
+---
+ repos/dde_linux/src/drivers/usb_host/main.cc |  1 +
+ repos/dde_linux/src/drivers/usb_host/raw.cc  | 22 --------------------
+ 2 files changed, 1 insertion(+), 22 deletions(-)
+
+diff --git a/repos/dde_linux/src/drivers/usb_host/main.cc b/repos/dde_linux/src/drivers/usb_host/main.cc
+index 080df0fbd0..6c4e163b6c 100644
+--- a/repos/dde_linux/src/drivers/usb_host/main.cc
++++ b/repos/dde_linux/src/drivers/usb_host/main.cc
+@@ -172,4 +172,5 @@ void Component::construct(Genode::Env &env)
+ 	env.exec_static_constructors();
+ 
+ 	static Usb_driver::Main main(env);
++	Genode::log("--- usb_host_drv initialized ---");
+ }
+diff --git a/repos/dde_linux/src/drivers/usb_host/raw.cc b/repos/dde_linux/src/drivers/usb_host/raw.cc
+index b804e2bde0..2b4565b935 100644
+--- a/repos/dde_linux/src/drivers/usb_host/raw.cc
++++ b/repos/dde_linux/src/drivers/usb_host/raw.cc
+@@ -1150,8 +1150,6 @@ class Usb::Root : public Genode::Root_component<Session_component>
+ 		Genode::Signal_handler<Usb::Root> _config_handler = {
+ 			_env.ep(), *this, &Usb::Root::_handle_config };
+ 
+-		Genode::Reporter _config_reporter { _env, "config" };
+-
+ 		Genode::Reporter _device_list_reporter {
+ 			_env, "devices", "devices", 512*1024 };
+ 
+@@ -1160,26 +1158,6 @@ class Usb::Root : public Genode::Root_component<Session_component>
+ 		void _handle_config()
+ 		{
+ 			Lx_kit::env().config_rom().update();
+-
+-			Genode::Xml_node config = Lx_kit::env().config_rom().xml();
+-
+-			if (!_config_reporter.enabled())
+-				_config_reporter.enabled(true);
+-
+-			bool const uhci = config.attribute_value<bool>("uhci", false);
+-			bool const ehci = config.attribute_value<bool>("ehci", false);
+-			bool const xhci = config.attribute_value<bool>("xhci", false);
+-			bool const ohci = config.attribute_value<bool>("ohci", false);
+-
+-			Genode::Reporter::Xml_generator xml(_config_reporter, [&] {
+-				if (uhci) xml.attribute("uhci", "yes");
+-				if (ehci) xml.attribute("ehci", "yes");
+-				if (xhci) xml.attribute("xhci", "yes");
+-				if (ohci) xml.attribute("ohci", "yes");
+-
+-				config.with_raw_content([&] (char const *start, size_t length) {
+-					xml.append(start, length); });
+-			});
+ 		}
+ 
+ 	protected:
+-- 
+2.31.0
+

@@ -103,11 +103,11 @@
   #  wget
     git
     killall
-    ghc
+    #ghc
     emacs
-    cabal2nix
-    haskellPackages.ghcid
-    haskellPackages.hakyll
+    #cabal2nix
+    #haskellPackages.ghcid
+    #haskellPackages.hakyll
   ];
 
   # Some programs need SUID wrappers, can be configured further or are

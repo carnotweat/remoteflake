@@ -1,0 +1,32 @@
+diff --git a/repos/os/src/test/vmm_x86/component.cc b/repos/os/src/test/vmm_x86/component.cc
+index 408c1088e2..1672f2a468 100644
+--- a/repos/os/src/test/vmm_x86/component.cc
++++ b/repos/os/src/test/vmm_x86/component.cc
+@@ -530,6 +530,8 @@ class Vmm::Main
+ {
+ 	private:
+ 
++		Genode::Env         &_env;
++
+ 		Signal_handler<Main> _destruct_handler;
+ 		Reconstructible<Vm>  _vm;
+ 
+@@ -540,14 +542,16 @@ class Vmm::Main
+ 			_vm.destruct();
+ 
+ 			log("vmm test finished");
++			_env.parent().exit(0);
+ 		}
+ 
+ 	public:
+ 
+ 		Main(Env &env)
+ 		:
+-			_destruct_handler(env.ep(), *this, &Main::_destruct),
+-			_vm(env, _destruct_handler)
++			_env(env),
++			_destruct_handler(_env.ep(), *this, &Main::_destruct),
++			_vm(_env, _destruct_handler)
+ 		{
+ 		}
+ };

@@ -1,0 +1,45 @@
+From 5833181782a158bb67c3b569d872fbbdf75ee51a Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Thu, 25 Mar 2021 20:35:49 +0100
+Subject: [PATCH] ahci_drv, part_block: refrest config when resolving policies
+
+The AHCI driver and the partition multiplexer both generate
+reports that might be consumed by an external component to
+configure client policies. This arrangement is only possible
+if these two servers support reconfiguration, which is done
+by updating the config ROM before resolving a policy.
+
+Fix #4057
+---
+ repos/os/src/drivers/ahci/main.cc      | 2 ++
+ repos/os/src/server/part_block/main.cc | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/repos/os/src/drivers/ahci/main.cc b/repos/os/src/drivers/ahci/main.cc
+index 2b050b1939..30079ec2da 100644
+--- a/repos/os/src/drivers/ahci/main.cc
++++ b/repos/os/src/drivers/ahci/main.cc
+@@ -346,6 +346,8 @@ struct Ahci::Main : Rpc_object<Typed_root<Block::Session>>,
+ 	Session_capability session(Root::Session_args const &args,
+ 	                            Affinity const &) override
+ 	{
++		config.update();
++
+ 		Session_label const label = label_from_args(args.string());
+ 		Session_policy const policy(label, config.xml());
+ 
+diff --git a/repos/os/src/server/part_block/main.cc b/repos/os/src/server/part_block/main.cc
+index e944a207bd..a0ada8d39b 100644
+--- a/repos/os/src/server/part_block/main.cc
++++ b/repos/os/src/server/part_block/main.cc
+@@ -306,6 +306,7 @@ class Block::Main : Rpc_object<Typed_root<Session>>,
+ 			long num = -1;
+ 			bool writeable = false;
+ 
++			_config.update();
+ 			Session_label const label = label_from_args(args.string());
+ 			try {
+ 				Session_policy policy(label, _config.xml());
+-- 
+2.29.2
+

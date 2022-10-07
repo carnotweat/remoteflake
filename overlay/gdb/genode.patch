@@ -1,0 +1,33 @@
+diff -ur a/bfd/config.bfd b/bfd/config.bfd
+--- a/bfd/config.bfd	2020-10-24 06:23:01.000000000 +0200
++++ b/bfd/config.bfd	2020-12-03 16:05:35.739694255 +0100
+@@ -231,7 +231,7 @@
+     targ_archs="$targ_archs bfd_i386_arch bfd_powerpc_arch bfd_rs6000_arch"
+     want64=true
+     ;;
+-  aarch64-*-elf | aarch64-*-rtems*)
++  aarch64-*-elf | aarch64-*-rtems* | aarch64-*-genode*)
+     targ_defvec=aarch64_elf64_le_vec
+     targ_selvecs="aarch64_elf64_be_vec aarch64_elf32_le_vec aarch64_elf32_be_vec arm_elf32_le_vec arm_elf32_be_vec"
+     want64=true
+@@ -655,7 +655,7 @@
+     targ_selvecs="i386_elf32_vec iamcu_elf32_vec l1om_elf64_vec k1om_elf64_vec"
+     want64=true
+     ;;
+-  x86_64-*-elf* | x86_64-*-rtems* | x86_64-*-fuchsia)
++  x86_64-*-elf* | x86_64-*-rtems* | x86_64-*-fuchsia | x86_64-*-genode*)
+     targ_defvec=x86_64_elf64_vec
+     targ_selvecs="i386_elf32_vec iamcu_elf32_vec x86_64_elf32_vec l1om_elf64_vec k1om_elf64_vec"
+     case "${targ}" in
+diff -ur a/config.sub b/config.sub
+--- a/config.sub	2020-09-13 04:33:40.000000000 +0200
++++ b/config.sub	2020-12-03 16:07:07.347015686 +0100
+@@ -1366,7 +1366,7 @@
+ 	     | skyos* | haiku* | rdos* | toppers* | drops* | es* \
+ 	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
+ 	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
+-	     | nsk* | powerunix)
++	     | nsk* | powerunix | genode*)
+ 	# Remember, each alternative MUST END IN *, to match a version number.
+ 		;;
+ 	qnx*)

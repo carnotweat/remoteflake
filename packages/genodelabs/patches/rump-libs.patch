@@ -1,0 +1,38 @@
+From 7388180bc13d3990435cfed5da1a229ad600717d Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Wed, 3 Feb 2021 16:02:49 +0100
+Subject: [PATCH] vfs_rump: static link dependencies
+
+The rump libraries are loaded exclusively by the rump VFS plugin,
+link them statically.
+---
+ repos/dde_rump/lib/mk/rump.inc   | 1 -
+ repos/dde_rump/lib/mk/rump_fs.mk | 1 -
+ 2 files changed, 2 deletions(-)
+
+diff --git a/repos/dde_rump/lib/mk/rump.inc b/repos/dde_rump/lib/mk/rump.inc
+index fc55936f66..57d5d63aa2 100644
+--- a/repos/dde_rump/lib/mk/rump.inc
++++ b/repos/dde_rump/lib/mk/rump.inc
+@@ -1,6 +1,5 @@
+ include $(REP_DIR)/lib/mk/rump_common.inc
+ 
+-SHARED_LIB = yes
+ LIBS      += rump_include
+ 
+ CC_OPT += -DLIBRUMPUSER
+diff --git a/repos/dde_rump/lib/mk/rump_fs.mk b/repos/dde_rump/lib/mk/rump_fs.mk
+index c9c8542f4b..00b55ca66a 100644
+--- a/repos/dde_rump/lib/mk/rump_fs.mk
++++ b/repos/dde_rump/lib/mk/rump_fs.mk
+@@ -1,7 +1,6 @@
+ include $(REP_DIR)/lib/mk/rump_common.inc
+ 
+ LIBS        += rump rump_tools
+-SHARED_LIB   = yes
+ RUMP_FS_BASE = $(BUILD_BASE_DIR)/var/libcache/rump_fs
+ NBCONFIG     = $(BUILD_BASE_DIR)/var/libcache/rump_tools/bin/nbconfig
+ 
+-- 
+2.30.0
+

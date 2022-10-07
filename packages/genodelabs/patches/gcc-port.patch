@@ -1,0 +1,22 @@
+commit 30d76a7231701e20e82ee025a36541e3bbc7276a
+Author: Emery Hemingway <ehmry@posteo.net>
+Date:   Sat Aug 15 17:19:10 2020 +0200
+
+    gcc.port: remove check_tool tests
+
+diff --git a/repos/ports/ports/gcc.port b/repos/ports/ports/gcc.port
+index 5a6c6bb683..39fecd2fee 100644
+--- a/repos/ports/ports/gcc.port
++++ b/repos/ports/ports/gcc.port
+@@ -14,11 +14,6 @@ PATCH_OPT := -p1 -d ${DIR(gcc)}
+ 
+ HASH_INPUT += $(REP_DIR)/${DIR(gcc)}/patches/series
+ 
+-AUTOCONF := autoconf2.64
+-
+-$(call check_tool,$(AUTOCONF))
+-$(call check_tool,autogen)
+-
+ default: _patch
+ 	@#
+ 	@# Re-generate configure scripts

@@ -1,0 +1,328 @@
+diff --git a/GNUmakefile b/GNUmakefile
+index feca365..2c6716a 100644
+--- a/GNUmakefile
++++ b/GNUmakefile
+@@ -111,9 +111,11 @@ install-opam-%: all opam/solo5-bindings-%.pc force-install
+ 	    (echo "error: PREFIX not set or incorrect"; false)
+ 	mkdir -p $(PREFIX)/lib/pkgconfig \
+ 	    $(PREFIX)/lib/solo5-bindings-$* \
+-	    $(PREFIX)/include/solo5-bindings-$*/solo5 \
+-	    $(PREFIX)/include/solo5-bindings-$*/crt
+-	cp -R include/solo5 include/crt $(PREFIX)/include/solo5-bindings-$*
++	    $(PREFIX)/include/solo5-bindings-$*
++	cp -R include/solo5 $(PREFIX)/include/solo5-bindings-$*
++ifdef CONFIG_HOST_CRT
++	cp -R include/crt $(PREFIX)/include/solo5-bindings-$*
++endif
+ ifndef CONFIG_GENODE
+ 	cp bindings/$*/solo5_$*.o bindings/$*/solo5_$*.lds \
+ 	    $(PREFIX)/lib/solo5-bindings-$*
+diff --git a/Makefile.common b/Makefile.common
+index 5ccc2ea..d64732c 100644
+--- a/Makefile.common
++++ b/Makefile.common
+@@ -30,8 +30,10 @@ include $(TOPDIR)/Makeconf
+ # tests (applications).
+ #
+ CC := $(MAKECONF_CC)
++CXX := $(MAKECONF_CXX)
+ CFLAGS := -std=c11 -Wall -Wextra -Werror -O2 -g
+ CFLAGS += -ffreestanding -fstack-protector-strong $(MAKECONF_CFLAGS)
++CXXFLAGS += -Wall -Wextra -Werror -O2 -g $(MAKECONF_CXXFLAGS)
+ CPPFLAGS := -isystem $(TOPDIR)/include/crt -I$(TOPDIR)/include/solo5
+ LD := $(MAKECONF_LD)
+ LDFLAGS := -nostdlib -z max-page-size=$(CONFIG_GUEST_PAGE_SIZE) -static \
+@@ -53,6 +55,12 @@ define COMPILE.c
+ 	mv -f $*.Td $*.d && touch $@
+ endef
+ 
++define COMPILE.cc
++	@echo "CXX $<"
++	$(CXX) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
++	mv -f $*.Td $*.d && touch $@
++endef
++
+ define COMPILE.S
+ 	@echo "AS $<"
+ 	$(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) -DASM_FILE -c $< -o $@
+diff --git a/bindings/GNUmakefile b/bindings/GNUmakefile
+index 147c245..d3efb36 100644
+--- a/bindings/GNUmakefile
++++ b/bindings/GNUmakefile
+@@ -57,7 +57,7 @@ muen_SRCS := muen/start.c $(common_SRCS) $(common_hvt_SRCS) \
+     muen/muen-clock.c muen/muen-console.c muen/muen-net.c \
+     muen/muen-platform_lifecycle.c muen/muen-yield.c muen/muen-sinfo.c
+ 
+-genode_SRCS := genode/stubs.c
++genode_SRCS := genode/bindings.cc
+ 
+ CPPFLAGS+=-D__SOLO5_BINDINGS__
+ 
+@@ -70,6 +70,9 @@ endif
+ %.o: %.c %.d
+ 	$(COMPILE.c)
+ 
++%.o: %.cc %.d
++	$(COMPILE.cc)
++
+ %.o: %.S %.d
+ 	$(COMPILE.S)
+ 
+@@ -139,9 +142,7 @@ muen/solo5_muen.o: $(muen_OBJS)
+ endif
+ 
+ ifdef CONFIG_GENODE
+-    genode_OBJS := $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(genode_SRCS)))
+-
+-$(genode_OBJS): CFLAGS += -Wno-unused-parameter
++    genode_OBJS := $(patsubst %.cc,%.o,$(patsubst %.S,%.o,$(genode_SRCS)))
+ 
+ GENODE_LDFLAGS := -nostdlib -z max-page-size=$(CONFIG_GUEST_PAGE_SIZE) -shared \
+     -gc-sections --eh-frame-hdr --entry=0x0 -T genode/genode_rel.ld
+diff --git a/bindings/genode/bindings.cc b/bindings/genode/bindings.cc
+index a4a4a34..6f439c6 100644
+--- a/bindings/genode/bindings.cc
++++ b/bindings/genode/bindings.cc
+@@ -44,8 +44,6 @@ extern struct mft1_note __solo5_mft1_note;
+ }
+ 
+ // Compile the MFT utilities as C++
+-#define memset Genode::memset
+-#define strncmp Genode::strcmp
+ #include "../../tenders/common/mft.c"
+ 
+ namespace Solo5
+@@ -117,32 +115,32 @@ struct Solo5::Device
+ {
+ 	virtual
+ 	solo5_result_t
+-	net_info(solo5_net_info &info) {
++	net_info(solo5_net_info &) {
+ 		return SOLO5_R_EINVAL; }
+ 
+ 	virtual
+ 	solo5_result_t
+-	net_write(const uint8_t *buf, size_t size) {
++	net_write(const uint8_t *, size_t) {
+ 		return SOLO5_R_EINVAL; }
+ 
+ 	virtual
+ 	solo5_result_t
+-	net_read(uint8_t *buf, size_t size, size_t &read_size) {
++	net_read(uint8_t *, size_t, size_t &) {
+ 		return SOLO5_R_EINVAL; }
+ 
+ 	virtual
+ 	solo5_result_t
+-	block_info(solo5_block_info &info) {
++	block_info(solo5_block_info &) {
+ 		return SOLO5_R_EINVAL; }
+ 
+ 	virtual
+ 	solo5_result_t
+-	block_write(solo5_off_t offset, const uint8_t *buf, size_t size) {
++	block_write(solo5_off_t, const uint8_t *, size_t) {
+ 		return SOLO5_R_EINVAL; }
+ 
+ 	virtual
+ 	solo5_result_t
+-	block_read(solo5_off_t offset, uint8_t *buf, size_t size) {
++	block_read(solo5_off_t, uint8_t *, size_t) {
+ 		return SOLO5_R_EINVAL; }
+ };
+ 
+@@ -615,11 +613,44 @@ solo5_block_read(solo5_handle_t handle, solo5_off_t offset,
+ 
+ 
+ solo5_result_t
+-solo5_set_tls_base(uintptr_t base)
++solo5_set_tls_base(uintptr_t)
+ {
+     return SOLO5_R_EUNSPEC;
+ }
+ 
++
++void *memcpy(void *restrict dest, const void *restrict src, size_t n)
++{
++	return Genode::memcpy(dest, src, n);
++}
++
++
++void *memset(void *dest, int c, size_t n)
++{
++	return Genode::memset(dest, c, n);
++}
++
++
++int strncmp(const char *l, const char *r, size_t n)
++{
++	return Genode::strcmp(l, r, n);
++}
++
++
++void _assert_fail(const char *file, const char *line, const char *e)
++{
++	Genode::error("Solo5: ABORT: ", file, ":", line, ": Assertion `", e, "' failed");
++	Platform::instance->exit(SOLO5_EXIT_ABORT, nullptr);
++}
++
++
++void _abort(const char *file, const char *line, const char *s, void *regs_hint)
++{
++	Genode::error("Solo5: ABORT: ", file, ":", line, ": ", s);
++	Platform::instance->exit(SOLO5_EXIT_ABORT, regs_hint);
++}
++
++
+ } // extern "C"
+ 
+ 
+@@ -637,7 +668,7 @@ void Component::construct(Genode::Env &env)
+ 	mft_get_builtin_mft1(&__solo5_mft1_note, &mft, &mft_size);
+ 
+ 	if (mft_validate(mft, mft_size) != 0) {
+-		Genode::error("Solo5: ", res, " Built-in manifest validation failed. Aborting.");
++		Genode::error("Solo5: Built-in manifest validation failed. Aborting.");
+ 		env.parent().exit(~0);
+ 		return;
+ 	}
+diff --git a/bindings/genode/stubs.c b/bindings/genode/stubs.c
+deleted file mode 100644
+index 0f1ca5c..0000000
+--- a/bindings/genode/stubs.c
++++ /dev/null
+@@ -1,23 +0,0 @@
+-#include "../bindings.h"
+-
+-void solo5_console_write(const char *buf, size_t size) { }
+-void solo5_exit(int status) { for(;;); }
+-void solo5_abort(void) { for(;;); }
+-
+-solo5_time_t solo5_clock_monotonic(void) { return ~0; }
+-solo5_time_t solo5_clock_wall(void) { return ~0; }
+-void solo5_yield(solo5_time_t deadline, solo5_handle_set_t *ready_set) { return; }
+-
+-solo5_result_t solo5_net_acquire(const char *name, solo5_handle_t *handle, struct solo5_net_info *info) { return SOLO5_R_EUNSPEC; }
+-solo5_result_t solo5_net_write(solo5_handle_t handle, const uint8_t *buf, size_t size) { return SOLO5_R_EUNSPEC; }
+-solo5_result_t solo5_net_read(solo5_handle_t handle, uint8_t *buf, size_t size, size_t *read_size) { return SOLO5_R_EUNSPEC; }
+-
+-solo5_result_t solo5_block_acquire(const char *name, solo5_handle_t *handle, struct solo5_block_info *info) { return SOLO5_R_EUNSPEC; }
+-
+-solo5_result_t solo5_block_write(solo5_handle_t handle, solo5_off_t offset, const uint8_t *buf, size_t size) { return SOLO5_R_EUNSPEC; }
+-solo5_result_t solo5_block_read(solo5_handle_t handle, solo5_off_t offset, uint8_t *buf, size_t size) { return SOLO5_R_EUNSPEC; }
+-
+-solo5_result_t solo5_set_tls_base(uintptr_t base) { return SOLO5_R_EUNSPEC; }
+-
+-uintptr_t SSP_GUARD;
+-void SSP_FAIL (void) { }
+diff --git a/configure.sh b/configure.sh
+index 0828409..61fa885 100755
+--- a/configure.sh
++++ b/configure.sh
+@@ -254,6 +254,21 @@ config_host_openbsd()
+     CONFIG_GENODE=
+ }
+ 
++config_host_genode()
++{
++    cc_is_clang || die "Only Clang is supported on Genode"
++
++    MAKECONF_CXXFLAGS="-mno-retpoline -Wno-mismatched-tags -Wno-undefined-bool-conversion -Wno-uninitialized -Wno-unknown-attributes -Wno-unused-variable -Wno-unused-parameter"
++    MAKECONF_LDFLAGS="-nopie"
++
++    [ -n "${OPT_ONLY_TOOLS}" ] && return
++    CONFIG_GENODE=1
++    CONFIG_HVT=
++    CONFIG_MUEN=
++    CONFIG_SPT=
++    CONFIG_VIRTIO=
++}
++
+ # Check for a tools-only build.
+ OPT_ONLY_TOOLS=
+ if [ -n "$1" ]; then
+@@ -266,6 +281,7 @@ fi
+ 
+ # Allow external override of CC.
+ CC=${CC:-cc}
++CXX=${CXX:-c++}
+ LD=${LD:-ld}
+ 
+ CC_MACHINE=$(${CC} -dumpmachine)
+@@ -293,6 +309,14 @@ case ${CC_MACHINE} in
+         CONFIG_ARCH=x86_64 CONFIG_HOST=OpenBSD
+         CONFIG_GUEST_PAGE_SIZE=0x1000
+         ;;
++    x86_64-*genode*)
++        CONFIG_ARCH=x86_64 CONFIG_HOST=Genode
++        CONFIG_GUEST_PAGE_SIZE=0x1000
++        ;;
++    aarch64-*genode*)
++        CONFIG_ARCH=aarch64 CONFIG_HOST=Genode
++        CONFIG_GUEST_PAGE_SIZE=0x1000
++        ;;
+     *)
+         die "Unsupported toolchain target: ${CC_MACHINE}"
+         ;;
+@@ -325,6 +349,9 @@ case "${CONFIG_HOST}" in
+     OpenBSD)
+         config_host_openbsd
+         ;;
++    Genode)
++        config_host_genode
++        ;;
+     *)
+         die "Unsupported build OS: ${CONFIG_HOST}"
+         ;;
+@@ -337,7 +364,7 @@ esac
+ # GNU make. Given the differences in quoting rules between the two
+ # (unable to sensibly use VAR="VALUE"), our convention is as follows:
+ #
+-# 1. GNU make parses the entire file, i.e. all variables defined below are 
++# 1. GNU make parses the entire file, i.e. all variables defined below are
+ #    available to Makefiles.
+ #
+ # 2. Shell scripts parse the subset of *lines* starting with "CONFIG_". I.e.
+@@ -355,11 +382,13 @@ CONFIG_VIRTIO=${CONFIG_VIRTIO}
+ CONFIG_MUEN=${CONFIG_MUEN}
+ CONFIG_GENODE=${CONFIG_GENODE}
+ MAKECONF_CFLAGS=${MAKECONF_CFLAGS}
++MAKECONF_CXXFLAGS=${MAKECONF_CXXFLAGS}
+ MAKECONF_LDFLAGS=${MAKECONF_LDFLAGS}
+ CONFIG_ARCH=${CONFIG_ARCH}
+ CONFIG_HOST=${CONFIG_HOST}
+ CONFIG_GUEST_PAGE_SIZE=${CONFIG_GUEST_PAGE_SIZE}
+ MAKECONF_CC=${CC}
++MAKECONF_CXX=${CXX}
+ MAKECONF_LD=${LD}
+ MAKECONF_SPT_CFLAGS=${MAKECONF_SPT_CFLAGS}
+ MAKECONF_SPT_LDLIBS=${MAKECONF_SPT_LDLIBS}
+diff --git a/include/solo5/mft_abi.h b/include/solo5/mft_abi.h
+index 537c7bc..47927b0 100644
+--- a/include/solo5/mft_abi.h
++++ b/include/solo5/mft_abi.h
+@@ -154,7 +154,8 @@ struct mft1_note {
+  * Internal alignment of (m) within struct mft1_note. Must be passed to
+  * elf_load_note() as note_align when loading.
+  */
+-#define MFT1_NOTE_ALIGN offsetof(struct { char c; struct mft m; }, m)
++struct _mft1_note_aligned { char c; struct mft m; };
++#define MFT1_NOTE_ALIGN offsetof(struct _mft1_note_aligned, m)
+ 
+ _Static_assert((offsetof(struct mft1_note, m) & (MFT1_NOTE_ALIGN - 1)) == 0,
+         "struct mft1_note.m is not aligned to a MFT1_NOTE_ALIGN boundary");
+diff --git a/tests/Makefile.tests b/tests/Makefile.tests
+index 2cd0dcd..d4e1191 100644
+--- a/tests/Makefile.tests
++++ b/tests/Makefile.tests
+@@ -69,8 +69,9 @@ manifest.c: manifest.json ../../include/solo5/mft_abi.h $(ELFTOOL)
+ 	$(CC) $(GENODE_APP_CFLAGS) $(CPPFLAGS) -c $< -o $@
+ 
+ %.genode: %.genode.o manifest.genode.o $(LDS.genode) $(BINDINGS.genode)
++	ln -sf $(BINDINGS.genode) solo5.lib.so
+ 	@echo "LD $@"
+-	$(LD) $(GENODE_APP_LDFLAGS) -T $(LDS.genode) $(BINDINGS.genode) \
++	$(LD) $(GENODE_APP_LDFLAGS) -T $(LDS.genode) solo5.lib.so \
+ 	    $< manifest.genode.o -o $@
+ 
+ ifdef CONFIG_HVT

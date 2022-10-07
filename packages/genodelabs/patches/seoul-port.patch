@@ -1,0 +1,18 @@
+diff --git a/repos/ports/ports/seoul.port b/repos/ports/ports/seoul.port
+index df1daca58f..93a5818fcb 100644
+--- a/repos/ports/ports/seoul.port
++++ b/repos/ports/ports/seoul.port
+@@ -29,10 +29,10 @@ additional_steps : $(DOWNLOADS)
+ 	sed -i "/Generated on/d" $(I82576VF_DIR)/genreg.py && \
+ 	echo "call code generators ... takes a while ..." && \
+ 	cd $(EXECUTOR_DIR) && \
+-	          ./build_instructions.py > instructions.inc && \
++	          python2 build_instructions.py > instructions.inc && \
+ 	cd $(CURDIR)/$(I82576VF_DIR) && \
+-	          ./genreg.py reg_pci.py ../../include/model/intel82576vfpci.inc && \
++	          python2 genreg.py reg_pci.py ../../include/model/intel82576vfpci.inc && \
+ 	cd $(CURDIR)/$(I82576VF_DIR) && \
+-	          ./genreg.py reg_mmio.py ../../include/model/intel82576vfmmio.inc
++	          python2 genreg.py reg_mmio.py ../../include/model/intel82576vfmmio.inc
+ 
+ .PHONY: additional_steps

@@ -1,0 +1,131 @@
+```
+             _____ _       _ __
+            / ___/(_)___ _(_) /
+            \__ \/ / _  \/ / /
+           ___/ / / (_) / / /
+          /____/_/\__, /_/_/
+                 /____/
+```
+
+[Sigil](https://gitea.c3d2.de/ehmry/sigil) is an experimental operating system
+distribution built on the [Genode OS framework](https://genode.org/), the
+[Nix package manager](https://nixos.org/), and the NixOS modular configuration
+system.
+
+Sigil was initially financed by [NLnet](https://nlnet.nl/) and the
+[Privacy and Trust Enhancing technologies (PET) fund](https://nlnet.nl/PET/)
+under the name "Genodepkgs". The project halted in early 2021 due to
+overwhelming technical challenges but is still intermittenly updated.
+
+While it is unlikely that Sigil will ever manifest a viable OS, it does serve
+as a testing ground for post-UNIX packaging and system distribution concepts.
+It also serves as an extreme test case for Nixpkgs cross-compilation and
+portability.
+
+
+## Articles
+[Genodepkgs post-mortem report](https://gemini.spam.works/users/emery/sigil-report.gmi)
+
+
+## Repository layout
+
+ - Native packages are at [packages](./packages/default.nix)
+
+ - Existing Nixpkgs packages are patched at [overlay](./overlay/default.nix)
+
+ - Tests are at [tests](./tests/default.nix)
+
+ - NixOS modules at [nixos-modules](./nixos-modules)
+
+
+## Packaging
+
+Packaging is done using standard Nixpkgs methods, a `stdenv` is available for
+cross-compilation. See [Solo5](./packages/solo5/default.nix) as an example.
+
+
+### Cross-compiling Nixpkgs
+
+Some existing packages from Nixpkgs can be built with little or no modification.
+Nixpkgs is available at the path `.#legacyPackages.x86_64-linux-x86_64-genode`
+(or `…-aarch64-genode`) and modifications to packages are made at an
+[overlay](./overlay/default.nix). Some packages need patched, others require
+additional features added to the Genode libc.
+
+Packages that run on Linux as well as Genode should not be packaged here, those
+should be added to Nixpkgs.
+
+
+## Toolchain
+
+The Genode Labs toolchain is available here only for Linux and in binary form.
+However, an experimental LLVM cross-compiler is provided here. Bootstrapping GCC
+has not been practical due to its recursive autotools build system.
+
+The enter a shell with the toolchain:
+
+```shell
+nix shell .#legacyPackages.x86_64-linux-x86_64-genode.stdenv.cc
+
+x86_64-unknown-genode-clang++ -v
+```
+
+
+## Tips and tricks
+
+### How to add missing Genode ports to a Genode depot package?
+
+The missing ports as indicated by a depot build failure must be added to
+[targets.nix](./packages/genodelabs/depot-targets.nix). For example:
+
+```nix
+{
+  wifi_drv = {
+    depotInputs = with self; [ libcrypto ];
+    portInputs = with ports; [ dde_linux ];
+  };
+}
+```
+
+### How to add undefined ports?
+
+Should a required port not be defined, it must be added to
+[ports.nix](./packages/genodelabs/ports.nix). Initially it should be sufficient to
+define the port as an empty attribute set, run the build again, and then add the
+hash found in the successive build error.
+
+To continue from the previous example:
+
+```nix
+{
+  dde_linux = { };
+}
+```
+
+And after the reattempting the build a fixed-output hash should be produced,
+this must now be added to the port definitions.
+
+```nix
+{
+  dde_linux = {
+    hash = "sha256-3G5Mprv9ZBNhDJRuVF6Nrkp3KbFaN10IKFq0OdyAY9M="; };
+}
+```
+
+Should the port preparation fail do to missing utilities, these must be added to
+the port definition using a `nativeBuildInputs` attribute.
+
+Note that the hash checked into `ports.nix` is an *output hash*. The port hash
+within the Genode source tree is an *explicit input hash*.
+
+
+## Legal
+
+This repository is published under MIT licensing consistent with Nixpkgs.
+
+> Note: MIT license does not apply to the packages built by Nixpkgs,
+> merely to the files in this repository (the Nix expressions, build
+> scripts, NixOS modules, etc.). It also might not apply to patches
+> included in Nixpkgs, which may be derivative works of the packages to
+> which they apply. The aforementioned artifacts are all covered by the
+> licenses of the respective packages.

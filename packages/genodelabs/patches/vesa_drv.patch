@@ -1,0 +1,24 @@
+From 13a30f54420db54681c21ffe282e5d526e71df0c Mon Sep 17 00:00:00 2001
+From: Emery Hemingway <ehmry@posteo.net>
+Date: Sun, 18 Apr 2021 10:15:58 +0200
+Subject: [PATCH] vesa_drv: add debugging messages
+
+---
+ repos/libports/src/drivers/framebuffer/vesa/main.cc | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/repos/libports/src/drivers/framebuffer/vesa/main.cc b/repos/libports/src/drivers/framebuffer/vesa/main.cc
+index cb6079df31..bd38ab383e 100644
+--- a/repos/libports/src/drivers/framebuffer/vesa/main.cc
++++ b/repos/libports/src/drivers/framebuffer/vesa/main.cc
+@@ -162,5 +162,7 @@ void Component::construct(Genode::Env &env)
+ 	/* XXX execute constructors of global statics */
+ 	env.exec_static_constructors();
+ 
++	Genode::log("Initializing VESA driver");
+ 	static Vesa_driver::Main inst(env);
++	Genode::log("VESA driver Initialized");
+ }
+-- 
+2.31.0
+
