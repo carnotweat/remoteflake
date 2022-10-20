@@ -1,0 +1,15 @@
+let Genode = ../Genode.dhall
+
+let Prelude = Genode.Prelude
+
+let Mode =
+      { width : Natural
+      , height : Natural
+      , refresh : Natural
+      , brightness : Natural
+      }
+
+in  { Type = Mode
+    , Map = Prelude.Map.Type Text Mode
+    , default = { width = 1024, height = 768, refresh = 60, brightness = 75 }
+    }

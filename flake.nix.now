@@ -1,0 +1,228 @@
+{
+
+  # notos
+  # https://github.com/cleverca22/not-os
+  # guest https://hydra.angeldsis.com/jobset/not-os/notos-unstable
+
+  edition = 201909;
+
+  description = "Genode OS for the T420 Lenovo ThinkPad";
+
+  inputs = {
+    genodepkgs.uri = "git+file:///home/repo/genodepkgs?ref=routes";
+    # "git+http://git.sr.ht/~ehmry/genodepkgs";
+    genode-depot.uri = "git+https://git.sr.ht/~ehmry/genode-depot";
+    nixpkgs.follows = "genodepkgs/nixpkgs";
+  };
+
+  outputs = { self, genodepkgs, genode-depot, nixpkgs }:
+    let
+      localSystems = [ "x86_64-linux" ];
+      crossSystems = [ "x86_64-genode" ];
+
+      forAllLocalSystems = f:
+        nixpkgs.lib.genAttrs localSystems (system: f system);
+
+      forAllCrossSystems = f:
+        with builtins;
+        let
+          f' = localSystem: crossSystem:
+            let system = localSystem + "-" + crossSystem;
+            in {
+              name = system;
+              value = f { inherit system localSystem crossSystem; };
+            };
+          list = nixpkgs.lib.lists.crossLists f' [ localSystems crossSystems ];
+          attrSet = listToAttrs list;
+        in attrSet;
+
+      forAllSystems = f:
+        (forAllCrossSystems f) // (forAllLocalSystems (system:
+          f {
+            inherit system;
+            localSystem = system;
+            crossSystem = system;
+          }));
+
+    in {
+
+      packages = forAllCrossSystems ({ system, localSystem, crossSystem }:
+        let
+          buildFirmwareImage =
+            import ./buildFirmwareImage { inherit self system; };
+          buildPackages = genodepkgs.legacyPackages.${localSystem};
+          lib = genodepkgs.lib.${system};
+          pkgs = genodepkgs.packages.${system};
+          buildBootDescription =
+            buildPackages.callPackage ./buildBootDescription.nix {
+              inherit self pkgs;
+              lib = genodepkgs.lib.${system};
+            };
+        in rec {
+
+          stage0 = let
+            description = buildBootDescription {
+              name = "stage0";
+              initConfig = "(${./modules}/t420.dhall).stage0.init";
+              imageInputs = (map pkgs.genodeSources.depot [
+                "acpi_drv"
+                "ahci_drv"
+                "fs_rom"
+                "init"
+                "input_filter"
+                "libc"
+                "log_core"
+                "nit_fb"
+                "nitpicker"
+                "part_block"
+                "platform_drv"
+                "ps2_drv"
+                "report_rom"
+                "rtc_drv"
+                "rump"
+                "terminal"
+                "terminal_log"
+                "usb_drv"
+                "vesa_drv"
+                "vfs"
+                "vfs_import"
+                "vfs_ttf"
+              ]) ++ (map pkgs.genodeSources.make [ "drivers/input/dummy" ])
+                ++ [ pkgs.base-nova pkgs.block_router ];
+              extraBinaries = [
+                "ld.lib.so"
+                "libc.lib.so"
+                "libm.lib.so"
+                "rump.lib.so"
+                "rump_fs.lib.so"
+                "vfs_import.lib.so"
+                "vfs_rump.lib.so"
+                "vfs_ttf.lib.so"
+              ];
+              extraRoms = {
+                "Inconsolata.ttf" =
+                  "${buildPackages.inconsolata}/share/fonts/truetype/inconsolata/Inconsolata-Regular.ttf";
+                "vfs.lib.so" =
+                  "${pkgs.genodeSources.make "server/vfs"}/vfs.lib.so";
+                "test-log" = "${pkgs.genodeSources.make "test/log"}/test-log";
+                "sotest-harness" = "${pkgs.sotest-producer}/bin/sotest-harness";
+              };
+            };
+
+          in genodepkgs.lib.${system}.novaImage "stage0" { } description;
+
+          nixosGuest = nixpkgs.lib.nixosSystem {
+            modules = [
+              "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
+            ];
+            system = localSystem;
+          };
+
+          stage2Root = let
+            guestIso = nixosGuest.config.system.build.isoImage;
+            description = buildBootDescription {
+              name = "stage2";
+              initConfig = "(${./modules}/t420.dhall).stage2.init";
+              imageInputs = (with genode-depot.packages.${system}; [
+                bash-minimal
+                coreutils-minimal
+              ]) ++ (map pkgs.genodeSources.depot [
+                "cached_fs_rom"
+                "init"
+                "libc"
+                "nit_fb"
+                "nitpicker"
+                "noux"
+                "posix"
+                "terminal"
+                "vesa_drv"
+                "vfs"
+                "vfs_ttf"
+              ]);
+              extraBinaries = [
+                "bash-minimal.tar"
+                "coreutils-minimal.tar"
+                "libc.lib.so"
+                "libc_noux.lib.so"
+                "libm.lib.so"
+                "posix.lib.so"
+                "vfs_ttf.lib.so"
+              ];
+              extraRoms = {
+                "Inconsolata.ttf" =
+                  "${buildPackages.inconsolata}/share/fonts/truetype/inconsolata/Inconsolata-Regular.ttf";
+                "vfs.lib.so" =
+                  "${pkgs.genodeSources.make "server/vfs"}/vfs.lib.so";
+                "test-log" = "${pkgs.genodeSources.make "test/log"}/test-log";
+                "sotest-harness" = "${pkgs.sotest-producer}/bin/sotest-harness";
+              };
+            };
+          in lib.runDhallCommand "stage2-root" { inherit description; } ''
+            dhall to-directory-tree --output $out \
+              <<< "(${./modules}/t420.dhall).stage2.files"
+            dhall text \
+              <<< "${./copy-roms.dhall} \"$out\" ($description).rom" \
+              > copy.sh
+            source copy.sh
+          '' // {
+            inherit description;
+          };
+          # cp ${guestIso}/iso/${guestIso.name} $out/guest.iso
+
+          stage2Disk = with buildPackages;
+            runCommand "boostrap.qcow2" {
+              nativeBuildInputs = [ e2fsprogs gptfdisk vmTools.qemu ];
+            } ''
+              qemu-img create -f raw fs.raw 32M
+              qemu-img create -f raw zero.raw 1M
+
+              mke2fs fs.raw \
+                -d ${self.packages.${system}.stage2Root}
+
+              cat zero.raw fs.raw zero.raw > gpt.raw
+
+              sgdisk gpt.raw --new=partnum 1:34:-34 \
+                --typecode=1:${import ./modules/partition-type} \
+                --change-name=1:genode
+
+              qemu-img convert -f raw -O qcow2 gpt.raw $out
+            '';
+
+        });
+
+      defaultPackage = forAllCrossSystems
+        ({ system, localSystem, crossSystem }: self.packages.${system}.stage0);
+
+      apps = let
+        apps' = forAllCrossSystems ({ system, localSystem, crossSystem }: {
+          boot-qemu = let
+            packages = self.packages.${system};
+            buildPackages = genodepkgs.legacyPackages.${localSystem};
+            appName = "boot-qemu";
+            bender = genodepkgs.packages.${system}.bender;
+            scriptDrv = buildPackages.writeScriptBin appName ''
+              test -e stage2.qcow2 \
+                || ${buildPackages.vmTools.qemu}/bin/qemu-img create \
+                  -f qcow2 -b ${packages.stage2Disk} stage2.qcow2
+
+              ${buildPackages.vmTools.qemu}/bin/qemu-system-x86_64 \
+                -machine q35 \
+                -cpu phenom  \
+                -m 512 \
+                -serial mon:stdio \
+                -kernel "${bender}" \
+                -initrd "${
+                  genodepkgs.packages.${system}.NOVA
+                }/hypervisor-x86_64 arg=iommu novpid serial logmem,${packages.stage0}" \
+                stage2.qcow2 \
+                $@
+            '';
+          in {
+            type = "app";
+            program = scriptDrv + "/bin/" + appName;
+          };
+        });
+      in apps' // { x86_64-linux = apps'.x86_64-linux-x86_64-genode; };
+
+    };
+}

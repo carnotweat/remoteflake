@@ -1,0 +1,7 @@
+let Mode = ./Mode
+
+let Configuration
+    : Type
+    = < Boot : {} | Intel : { modes : Mode.Map } | Vesa : { mode : Mode.Type } >
+
+in  Configuration

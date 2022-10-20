@@ -1,29 +1,76 @@
 {
   "nodes": {
-    "nimble": {
+    "genode-depot": {
+      "info": {
+        "lastModified": 1586806977,
+        "narHash": "sha256-uCZ3hnqK7Vt4usoYcxDxVb49tnrp/qjiU4uvn9CkmO4=",
+        "revCount": 9
+      },
       "inputs": {
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1665020851,
-        "narHash": "sha256-dW9HQNicaCg1yzWWUuBr1lzH9jSunr/rYgHdLAm+ZIA=",
-        "owner": "nix-community",
-        "repo": "flake-nimble",
-        "rev": "3928a8f6977c96e8ae602b23dd39317233d448d1",
-        "type": "github"
+        "ref": "master",
+        "rev": "18fc13d143f6d2509f9749b429cbfd618d71dad0",
+        "type": "git",
+        "url": "https://git.sr.ht/~ehmry/genode-depot"
       },
       "original": {
-        "id": "nimble",
-        "type": "indirect"
+        "type": "git",
+        "url": "https://git.sr.ht/~ehmry/genode-depot"
+      }
+    },
+    "genode-depot_2": {
+      "info": {
+        "lastModified": 1584019323,
+        "narHash": "sha256-/ZWsNeLI90r77T1GHABWjY5vtYFKDCUL+Io9ljfKgMA=",
+        "revCount": 8
+      },
+      "inputs": {
+        "nixpkgs": "nixpkgs_2"
+      },
+      "locked": {
+        "ref": "master",
+        "rev": "025906c2146d81fb890532c6e46dbfda4cb38ede",
+        "type": "git",
+        "url": "https://git.sr.ht/~ehmry/genode-depot"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://git.sr.ht/~ehmry/genode-depot"
+      }
+    },
+    "genodepkgs": {
+      "info": {
+        "lastModified": 1588111644,
+        "narHash": "sha256-rIM4KH5CoM1joHuHLcersz0QSmfKHnftsMF1s1ygdZQ=",
+        "revCount": 228
+      },
+      "inputs": {
+        "genode-depot": "genode-depot_2",
+        "nixpkgs": "nixpkgs_3"
+      },
+      "locked": {
+        "ref": "routes",
+        "rev": "5c257d20b2eddca33fedbff808311730a18fa891",
+        "type": "git",
+        "url": "file:///home/repo/genodepkgs"
+      },
+      "original": {
+        "ref": "routes",
+        "type": "git",
+        "url": "file:///home/repo/genodepkgs"
       }
     },
     "nixpkgs": {
+      "info": {
+        "lastModified": 1584015812,
+        "narHash": "sha256-oDj4g9nL3fp3xh0jAPZSHiucDxkLXA/rO3uM8L6kE0Y="
+      },
       "locked": {
-        "lastModified": 1641555862,
-        "narHash": "sha256-AJK1Q5djPXs/ba3K6gHsVAer9yDPVLic78ZIDsFSkHU=",
-        "owner": "nixos",
+        "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "d1acd89e0116ff88eba80541027429fc922612e9",
+        "rev": "a3735dcbd7b2530ae3bcf73fd91e1ca6aa9449e7",
         "type": "github"
       },
       "original": {
@@ -32,28 +79,45 @@
       }
     },
     "nixpkgs_2": {
+      "info": {
+        "lastModified": 1584015812,
+        "narHash": "sha256-oDj4g9nL3fp3xh0jAPZSHiucDxkLXA/rO3uM8L6kE0Y="
+      },
       "locked": {
-        "lastModified": 1652575754,
-        "narHash": "sha256-s6MM73tJFKhqznScyetULj9DidKjZSPSPq925TzrRB4=",
-        "owner": "ehmry",
+        "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "bf18dab0c73f4c20efad265c7683879f585119fc",
+        "rev": "a3735dcbd7b2530ae3bcf73fd91e1ca6aa9449e7",
         "type": "github"
       },
       "original": {
-        "owner": "ehmry",
-        "ref": "sigil-21",
+        "id": "nixpkgs",
+        "type": "indirect"
+      }
+    },
+    "nixpkgs_3": {
+      "info": {
+        "lastModified": 1585835256,
+        "narHash": "sha256-8+3D0tUeUEzGSBMTw0FNZBCMB0negok5VisXm9vkz1U="
+      },
+      "locked": {
+        "owner": "NixOS",
         "repo": "nixpkgs",
+        "rev": "09190b9c16c6021fa29733874986c46c00144ed1",
         "type": "github"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "type": "indirect"
       }
     },
     "root": {
       "inputs": {
-        "nimble": "nimble",
-        "nixpkgs": "nixpkgs_2"
+        "genode-depot": "genode-depot",
+        "genodepkgs": "genodepkgs",
+        "nixpkgs": "nixpkgs_3"
       }
     }
   },
   "root": "root",
-  "version": 7
+  "version": 5
 }
