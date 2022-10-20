@@ -1,10 +1,23 @@
-# Edit this configuration file to define what should be installed on
-# your system.  Help is available in the configuration.nix(5) man page
-# and in the NixOS manual (accessible by running ‘nixos-help’).
-
 { config, pkgs, options, ... }:
-
+# # definitions
+let
+  unstable = import
+    (builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/db25c4da285.tar.gz)
+    # reuse the current configuration
+    { config = config.nixpkgs.config; };
+in
 {
+  environment.systemPackages = with pkgs; [
+    #nginx
+    unstable.certbot
+    unstable.nixops
+    unstable.emacs
+    firefox
+    git
+    
+  ];
+
+
   imports =
     
     [ # Include the results of the hardware scan.
@@ -83,7 +96,9 @@
     extraGroups = [ "networkmanager" "wheel" ];
     packages = with pkgs; [
       firefox
-    #git
+      nixopsUnstable
+      git
+      emacs
     #  thunderbird
     ];
   };
@@ -91,6 +106,16 @@
   # Enable automatic login for the user.
   services.xserver.displayManager.autoLogin.enable = true;
   services.xserver.displayManager.autoLogin.user = "x";
+  #virtualbox
+  virtualisation.virtualbox.host.enable = true;
+  users.extraGroups.vboxusers.members = [ "x" ];
+  nixpkgs.config.allowUnfree = true;
+  #virtualisation.virtualbox.host.enable = true;
+  virtualisation.virtualbox.host.enableExtensionPack = true;  
+  virtualisation.virtualbox.guest.enable = true;
+  virtualisation.virtualbox.guest.x11 = true;
+
+  
 
   # Workaround for GNOME autologin: https://github.com/NixOS/nixpkgs/issues/103746#issuecomment-945091229
   systemd.services."getty@tty1".enable = false;
@@ -98,17 +123,17 @@
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
-  environment.systemPackages = with pkgs; [
-  #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-  #  wget
-    git
-    killall
-    #ghc
-    emacs
-    #cabal2nix
-    #haskellPackages.ghcid
-    #haskellPackages.hakyll
-  ];
+   #environment.systemPackages = with pkgs; [
+  # #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
+  # #  wget
+  #   git
+  #   killall
+  #   #ghc
+  #   emacs
+  #   #cabal2nix
+  #   #haskellPackages.ghcid
+  #   #haskellPackages.hakyll
+  # ];
 
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.
