@@ -2,6 +2,7 @@
 # # definitions
 let
   unstable = import
+#    (import "/root/.emacs.d/emacs.nix" { inherit pkgs;})
     (builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/db25c4da285.tar.gz)
     # reuse the current configuration
     { config = config.nixpkgs.config; };
@@ -9,8 +10,20 @@ in
 {
   environment.systemPackages = with pkgs; [
     unstable.emacs
+    #myemacs
+    libpng
+    poppler
+    epdfview
+    #libpoppler-private-dev
+    poppler_utils
+    dune_1
+    tdesktop
+    zlib
     nginx
+    nixStatic
     tetex
+    graphviz-nox
+    graphviz
     bibtex2html
     rubber
     bibtex2html
@@ -29,6 +42,7 @@ in
     autoconf
     hy
     nox
+    nix-prefetch
     stack
     cabal-install
 #    android-tools
@@ -40,11 +54,11 @@ in
     gnumake
     killall
     streamlink
-    home-manager
+    #home-manager
     #osquery
     python27Full
     python39Full
-    
+    python39Packages.bootstrapped-pip
   ];
 
 
@@ -66,6 +80,7 @@ in
   boot.loader.grub.useOSProber = true;
 
   networking.hostName = "nixos"; # Define your hostname.
+  #enableIPV6 = false;
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
   # Configure network proxy if necessary
@@ -123,16 +138,24 @@ in
 
   # Enable touchpad support (enabled default in most desktopManager).
   # services.xserver.libinput.enable = true;
+  fonts.fonts = with pkgs; [ fira-code ];
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.x = {
     isNormalUser = true;
     description = "x";
     extraGroups = [ "networkmanager" "wheel" ];
-    # packages = with pkgs; [
+
+  };
+  # Define a user account. Don't forget to set a password with ‘passwd’.
+  users.users.ram = {
+    isNormalUser = true;
+    description = "x";
+    extraGroups = [ "networkmanager" "wheel" ];
+    packages = with pkgs; [
       
-    #   nixopsUnstable
-    # ];
+      nixopsUnstable
+    ];
   };
 
   # Enable automatic login for the user.
