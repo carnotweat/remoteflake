@@ -6,8 +6,7 @@
     nixpkgs-unstable.url = "nixpkgs/nixos-unstable"; 
   };
 
-
-  outputs = { self,  nixpkgs, nixpkgs-unstable }:
+  outputs = { self, nixpkgs, nixpkgs-unstable }:
     let
       system = "x86_64-linux";
       overlay-unstable = final: prev: {
@@ -20,7 +19,7 @@
 
       };
     in {
-      nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
+      nixosConfigurations."<hostname>" = nixpkgs.lib.nixosSystem {
         inherit system;
         modules = [
           # Overlays-module makes "pkgs.unstable" available in configuration.nix
@@ -29,8 +28,4 @@
         ];
       };
     };
-  #     inputs.flake-compat = {
-  #   url = "github:edolstra/flake-compat";
-  #   flake = false;
-  # };
 }

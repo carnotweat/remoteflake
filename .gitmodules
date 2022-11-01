@@ -1,0 +1,3 @@
+[submodule "dev-shel"]
+	path = dev-shel
+	url = https://github.com/carnotweat/remoteflake.git
