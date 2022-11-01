@@ -44,7 +44,7 @@
 
   #remote
 
-  #services.x2goserver.enable = true;
+  services.x2goserver.enable = true;
   
 
   # Configure keymap in X11
@@ -90,11 +90,11 @@
     isNormalUser = true;
     description = "x";
     extraGroups = [ "networkmanager" "wheel" ];
-    packages = with pkgs; [
-      firefox
-    #git
-    #  thunderbird
-    ];
+    # packages = with pkgs; [
+    #   firefox
+    # #git
+    # #  thunderbird
+    # ];
   };
 
   # Enable automatic login for the user.
@@ -113,6 +113,7 @@
     pkgs.unstable.nixops
     pkgs.unstable.emacs
     git
+    firefox
     killall
   ];
 
