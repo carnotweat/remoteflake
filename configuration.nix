@@ -15,6 +15,12 @@
   boot.loader.grub.enable = true;
   boot.loader.grub.device = "/dev/sda";
   boot.loader.grub.useOSProber = true;
+  
+#define nix
+  nix = {
+  package = pkgs.nixFlakes;
+  extraOptions = "experimental-features = nix-command flakes";
+  };
 
   networking.hostName = "nixos"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
@@ -33,11 +39,13 @@
   i18n.supportedLocales = [ "all" ];
   # Enable the X11 windowing system.
   services.xserver.enable = true;
+  #services.xserver.layout = us;
+  services.xserver.windowManager.i3.enable = true;
   #emacs
   #nixpkgs.overlays = [ nur.overlay ];
   #services.emacs.package = pkgs.emacsUnstable;
   #nixpkgs.overlays = [ (import self.inputs.emacs-overlay) ];
-
+  #nix.settings.experimental-features = nix-command flakes;
   # Enable the GNOME Desktop Environment.
   services.xserver.displayManager.gdm.enable = true;
   services.xserver.desktopManager.gnome.enable = true;
@@ -104,7 +112,23 @@
   # Workaround for GNOME autologin: https://github.com/NixOS/nixpkgs/issues/103746#issuecomment-945091229
   systemd.services."getty@tty1".enable = false;
   systemd.services."autovt@tty1".enable = false;
-
+     systemd.services."tigervnc-server" =                                                                                            
+   { description = "TigerVNC Server";                                                                                              
+                                                                                                                                   
+     wantedBy = [ "multi-user.target" ];                                                                                           
+                                                                                                                                   
+     serviceConfig =                                                                                                               
+     { StandardError = "journal";                                                                                                  
+       ExecStart = ''                                                                                                              
+         ${pkgs.bash}/bin/bash -c 'source ${config.system.build.setEnvironment} ; \                                                
+                   exec $SHELL --login -c "exec ${pkgs.tigervnc}/bin/vncserver :5"'                                                
+       '';                                                                                                                         
+       Type = "forking";                                                                                                           
+       User = "x";                                                                                                             
+       Restart = "always";                                                                                                         
+       RestartSec = "10s";                                                                                                         
+     };                                                                                                                            
+   };                             
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
@@ -113,8 +137,22 @@
     pkgs.unstable.nixops
     pkgs.unstable.emacs
     git
+    sqlite
+    parallel
+    gcc
+    autoconf
+    autogen
+    automake
+    gnumake
+    pkg-config
     firefox
+    #termite
+    tigervnc
+    x2goclient
     killall
+    python39Packages.bootstrapped-pip
+    #python310
+    python39
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
