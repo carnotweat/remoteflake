@@ -3,11 +3,13 @@
 
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-21.11"; 
-    nixpkgs-unstable.url = "nixpkgs/nixos-unstable"; 
+    nixpkgs-unstable.url = "nixpkgs/nixos-unstable";
+    netkit.url = "github:icebox-nix/netkit.nix";
+    #input.netkit.url = "path:/root/clones/netkit.nix";
   };
 
 
-  outputs = { self,  nixpkgs, nixpkgs-unstable }:
+  outputs = { self, netkit,  nixpkgs, nixpkgs-unstable }:
     let
       system = "x86_64-linux";
       overlay-unstable = final: prev: {
