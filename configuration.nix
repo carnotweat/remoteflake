@@ -15,11 +15,16 @@
   boot.loader.grub.enable = true;
   boot.loader.grub.device = "/dev/sda";
   boot.loader.grub.useOSProber = true;
-  
+  boot.kernelModules = [ "kvm-intel" ];
 #define nix
   nix = {
   package = pkgs.nixFlakes;
   extraOptions = "experimental-features = nix-command flakes";
+  # binaryCaches          = [ "https://cache.iog.io"
+  #                           "https://aseipp-nix-cache.global.ssl.fastly.net"
+  #                         ];
+                          
+  # binaryCachePublicKeys = [ "hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=" ];
   };
 
   networking.hostName = "nixos"; # Define your hostname.
@@ -41,6 +46,17 @@
   services.xserver.enable = true;
   #services.xserver.layout = us;
   services.xserver.windowManager.i3.enable = true;
+  #peerix
+  
+  # services.ipfs.enable = true;
+  # services.peerix.openFirewall = true;
+  # # services.peerix.user = root;
+  # # services.peerix.group = wheel;
+  # services.peerix.privateKeyFile = /root/.ssh/id_ed25519;
+  # services.peerix.publicKeyFile = /root/.ssh/id_ed25519.pub;
+  services.ipfs = {
+  enable = true;
+};
   #emacs
   #nixpkgs.overlays = [ nur.overlay ];
   #services.emacs.package = pkgs.emacsUnstable;
@@ -49,6 +65,24 @@
   # Enable the GNOME Desktop Environment.
   services.xserver.displayManager.gdm.enable = true;
   services.xserver.desktopManager.gnome.enable = true;
+
+  # docker
+  virtualisation.docker.enable = true;
+  
+  #virtd
+  virtualisation.libvirtd.enable = true;
+  programs.dconf.enable = true;
+  #environment.systemPackages = with pkgs; [ virt-manager ];
+  #vitrualbox 
+  virtualisation.virtualbox.host.enable = true;
+  users.extraGroups.vboxusers.members = [ "root"
+                                          "x"
+                                        ];
+  nixpkgs.config.allowUnfree = true;
+  #virtualisation.virtualbox.host.enable = true;
+  virtualisation.virtualbox.host.enableExtensionPack = true;
+  virtualisation.virtualbox.guest.enable = true;
+  virtualisation.virtualbox.guest.x11 = true;
 
   #remote
 
@@ -97,13 +131,16 @@
   users.users.x = {
     isNormalUser = true;
     description = "x";
-    extraGroups = [ "networkmanager" "wheel" ];
+    extraGroups = [ "networkmanager" "wheel" "libvirtd" "docker" ];
     # packages = with pkgs; [
     #   firefox
     # #git
     # #  thunderbird
     # ];
   };
+  
+  users.users.root.extraGroups = [ "docker" "lobvirtd"];
+  #users.users.x.extraGroups = [ "docker" ];
 
   # Enable automatic login for the user.
   services.xserver.displayManager.autoLogin.enable = true;
@@ -135,15 +172,40 @@
   #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
     #  wget
     pkgs.unstable.nixops
+    nix-serve
     pkgs.unstable.emacs
     git
+    gist
+    mercurial
+    darcs
+    libvirt
+    virt-manager
+    wget
+    jq
+    curl
+    xclip
+    openssl
+    
+    #xe-guest-utilities
+    nixos-option
     sqlite
+    nyxt
+    vagrant
+    docker-compose
+    docker-client
+    docker
+    niv
     parallel
     gcc
+    gmp
+    xen
+    #libgmp
+    #nixos.chez
     autoconf
     autogen
     automake
     gnumake
+    gnum4
     pkg-config
     firefox
     #termite
@@ -165,14 +227,20 @@
 
   # List services that you want to enable:
 
-  # Enable the OpenSSH daemon.
-  # services.openssh.enable = true;
+  #Enable the OpenSSH daemon.
+  #services.oppeenssh.enable = true;
+  services.sshd.enable = true;
+
 
   # Open ports in the firewall.
   # networking.firewall.allowedTCPPorts = [ ... ];
   # networking.firewall.allowedUDPPorts = [ ... ];
   # Or disable the firewall altogether.
   # networking.firewall.enable = false;
+  networking.extraHosts =
+  ''
+199.232.28.133 raw.githubusercontent.com
+  '';
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
