@@ -10,7 +10,13 @@
     [ # Include the results of the hardware scan.
       ./hardware-configuration.nix
     ];
-
+#   #define nix-packages
+#   nix.package = pkgs.stable.nixStable;
+#   nixpkgs.config.packageOverrides = pkgs: {
+#     stable = import <nixos-stable> {
+#         config = config.nixpkgs.config;
+#     };
+# };
   # Bootloader.
   boot.loader.grub.enable = true;
   boot.loader.grub.device = "/dev/sda";
@@ -20,9 +26,9 @@
   nix = {
   package = pkgs.nixFlakes;
   extraOptions = "experimental-features = nix-command flakes";
-  # binaryCaches          = [ "https://cache.iog.io"
-  #                           "https://aseipp-nix-cache.global.ssl.fastly.net"
-  #                         ];
+  binaryCaches          = [ "https://cache.iog.io"
+                            "https://aseipp-nix-cache.global.ssl.fastly.net"
+                          ];
                           
   # binaryCachePublicKeys = [ "hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=" ];
   };
@@ -47,7 +53,7 @@
   #services.xserver.layout = us;
   services.xserver.windowManager.i3.enable = true;
   #peerix
-  
+  services.postgresql.enable = true;
   # services.ipfs.enable = true;
   # services.peerix.openFirewall = true;
   # # services.peerix.user = root;
@@ -181,6 +187,11 @@
     libvirt
     virt-manager
     wget
+    tmux
+    #wemux
+    tmate
+    screen
+    service-wrapper
     jq
     curl
     xclip
@@ -189,6 +200,7 @@
     #xe-guest-utilities
     nixos-option
     sqlite
+    postgresql
     nyxt
     vagrant
     docker-compose
@@ -199,6 +211,7 @@
     gcc
     gmp
     xen
+    fuse-emulator
     #libgmp
     #nixos.chez
     autoconf
@@ -212,7 +225,9 @@
     tigervnc
     x2goclient
     killall
+    #engelsystem
     python39Packages.bootstrapped-pip
+    python39Packages.sqlalchemy-migrate
     #python310
     python39
   ];
