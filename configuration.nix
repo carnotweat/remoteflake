@@ -3,7 +3,13 @@
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
 { config, pkgs, options, ... }:
-
+let
+    nixosRecentCommitTarball =
+    builtins.fetchTarball {
+      url = "https://github.com/NixOS/nixpkgs/archive/46ee37ca1d9cd3bb18633b4104ef21d9035aac89.tar.gz"; # 2021-09-18
+      # to find this, click on "commits" at https://github.com/NixOS/nixpkgs and then follow nose to get e.g. https://github.com/NixOS/nixpkgs/commit/0e575a459e4c3a96264e7a10373ed738ec1d708f, and then change "commit" to "archive" and add ".tar.gz"
+    };
+    in
 {
   imports =
     
@@ -11,12 +17,13 @@
       ./hardware-configuration.nix
     ];
 #   #define nix-packages
-#   nix.package = pkgs.stable.nixStable;
-#   nixpkgs.config.packageOverrides = pkgs: {
-#     stable = import <nixos-stable> {
-#         config = config.nixpkgs.config;
-#     };
-# };
+    nixpkgs.config = {
+      packageOverrides = pkgs: {
+        nixosRecentCommit = import nixosRecentCommitTarball {
+          config = config.nixpkgs.config;
+        };
+      };
+    };
   # Bootloader.
   boot.loader.grub.enable = true;
   boot.loader.grub.device = "/dev/sda";
@@ -211,6 +218,8 @@
     gcc
     gmp
     xen
+    busybox
+    nixosRecentCommit.etcher
     fuse-emulator
     #libgmp
     #nixos.chez

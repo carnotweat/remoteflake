@@ -6,6 +6,8 @@
     nixpkgs-unstable.url = "nixpkgs/nixos-unstable";
     netkit.url = "github:icebox-nix/netkit.nix";
     #input.netkit.url = "path:/root/clones/netkit.nix";
+    # disko.url = "github:nix-community/disko";
+    # disko.inputs.nixpkgs.follows = "nixpkgs";
   };
 
 
@@ -28,9 +30,14 @@
           # Overlays-module makes "pkgs.unstable" available in configuration.nix
           ({ config, pkgs, ... }: { nixpkgs.overlays = [ overlay-unstable ]; })
           ./configuration.nix
+          #nixosModule.disko
+          #./modules/netkit.nix
+          #netkit.nixosModule
         ];
       };
     };
+  
+  
   #     inputs.flake-compat = {
   #   url = "github:edolstra/flake-compat";
   #   flake = false;
